@@ -1,0 +1,1 @@
+Prefer raw Tailwind + Framer Motion springs (stiffness: 180, damping: 25) over heavy component libraries, and ensure all <img /> tags use crossOrigin="anonymous" so Canvas color extraction and html-to-image exports never hit CORS taint errors.
