@@ -2,13 +2,14 @@
 
 import React, { useEffect, useRef } from 'react';
 import { usePlayerStore } from '@/stores/usePlayerStore';
-import { LyricWord } from './wordTimingEngine';
+import { LyricWord, findActiveWordIndex } from './wordTimingEngine';
 import {
   StarNode,
   ConstellationEdge,
-  drawStarNode,
-  drawFocalReticle,
-  drawGraduatedLine,
+  drawCelestialStar,
+  drawShootingStar,
+  drawStarVertex,
+  drawConstellationHairline,
   buildConstellationEdges,
 } from './constellationGeometry';
 import { ConstellationPalette } from './paletteExtractor';
@@ -24,7 +25,6 @@ interface StardustMote {
 
 interface ConstellationCanvasProps {
   nodes: StarNode[];
-  activeWordIndex: number;
   words: LyricWord[];
   palette: ConstellationPalette;
   prefersReducedMotion?: boolean;
@@ -32,23 +32,19 @@ interface ConstellationCanvasProps {
 
 export const ConstellationCanvas: React.FC<ConstellationCanvasProps> = ({
   nodes,
-  activeWordIndex,
   words,
   palette,
   prefersReducedMotion = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Keep mutable references for 60fps RAF loop without React re-renders
   const nodesRef = useRef<StarNode[]>(nodes);
   const wordsRef = useRef<LyricWord[]>(words);
-  const activeWordIdxRef = useRef<number>(activeWordIndex);
   const paletteRef = useRef<ConstellationPalette>(palette);
   const reducedMotionRef = useRef<boolean>(prefersReducedMotion);
 
   nodesRef.current = nodes;
   wordsRef.current = words;
-  activeWordIdxRef.current = activeWordIndex;
   paletteRef.current = palette;
   reducedMotionRef.current = prefersReducedMotion;
 
@@ -60,36 +56,23 @@ export const ConstellationCanvas: React.FC<ConstellationCanvasProps> = ({
     if (!ctx) return;
 
     let animationFrameId: number;
-    let lastTime = performance.now();
     let isTabVisible = !document.hidden;
 
-    // Reticle tracking coordinates
-    let reticleX = canvas.width / 2;
-    let reticleY = canvas.height / 2;
-    let reticleRadius = 24;
-    let reticleRotation = 0;
-    let reticleOpacity = 0;
-
-    // Fixed pool of stardust motes
-    const motes: StardustMote[] = Array.from({ length: 45 }, () => ({
+    // Ambient background stars
+    const motes: StardustMote[] = Array.from({ length: 55 }, () => ({
       x: Math.random(),
       y: Math.random(),
-      size: 0.8 + Math.random() * 1.6,
-      baseOpacity: 0.15 + Math.random() * 0.45,
-      twinkleSpeed: 0.8 + Math.random() * 1.4,
+      size: 0.8 + Math.random() * 2.2,
+      baseOpacity: 0.2 + Math.random() * 0.5,
+      twinkleSpeed: 0.7 + Math.random() * 1.5,
       phase: Math.random() * Math.PI * 2,
     }));
 
-    // Handle Tab Visibility to save CPU/GPU when minimized
     const handleVisibilityChange = () => {
       isTabVisible = !document.hidden;
-      if (isTabVisible) {
-        lastTime = performance.now();
-      }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Resize handler with DPR clamp
     const handleResize = () => {
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -102,19 +85,16 @@ export const ConstellationCanvas: React.FC<ConstellationCanvasProps> = ({
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(canvas);
 
-    // Main 60fps Decoupled Render Loop
+    // 60fps Single-Source-of-Truth Render Loop
     const render = (now: number) => {
       if (!isTabVisible) {
         animationFrameId = requestAnimationFrame(render);
         return;
       }
 
-      const dtMs = Math.min(100, Math.max(1, now - lastTime));
-      lastTime = now;
-      const dtSec = dtMs / 1000;
-
-      // Pull current playback state directly from store (ZERO React re-renders)
-      const { currentTimeMs, isPlaying } = usePlayerStore.getState();
+      // Read authoritative playback clock directly from store
+      const { currentTimeMs, syncOffsetMs, isPlaying } = usePlayerStore.getState();
+      const effectiveTimeMs = currentTimeMs + syncOffsetMs;
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const width = canvas.width / dpr;
@@ -127,15 +107,14 @@ export const ConstellationCanvas: React.FC<ConstellationCanvasProps> = ({
       const currentPalette = paletteRef.current;
       const currentNodes = nodesRef.current;
       const currentWords = wordsRef.current;
-      const activeIdx = activeWordIdxRef.current;
       const isReduced = reducedMotionRef.current;
 
-      // 1. Draw Ambient Stardust Motes
+      // 1. Draw Ambient Background Celestial Stars
       for (let i = 0; i < motes.length; i++) {
         const m = motes[i];
         const px = m.x * width;
         const py = m.y * height;
-        const twinkle = isReduced ? 1.0 : 0.6 + 0.4 * Math.sin(now * 0.001 * m.twinkleSpeed + m.phase);
+        const twinkle = isReduced ? 1.0 : 0.6 + 0.4 * Math.sin(now * 0.0012 * m.twinkleSpeed + m.phase);
         ctx.fillStyle = currentPalette.starInactive;
         ctx.globalAlpha = m.baseOpacity * twinkle;
         ctx.beginPath();
@@ -143,17 +122,17 @@ export const ConstellationCanvas: React.FC<ConstellationCanvasProps> = ({
         ctx.fill();
       }
 
-      // 2. Pre-Vocal Intro / Ambient Holding Mode
-      if (!currentNodes || currentNodes.length === 0 || activeIdx === -1) {
-        // Draw gentle breathing center reticle
-        const breathe = isReduced ? 24 : 24 + Math.sin(now * 0.0015) * 2;
-        drawFocalReticle(ctx, width / 2, height / 2, breathe, currentPalette.reticle, now * 0.0003, 0.4);
+      // If pre-vocal intro or no words, render ambient celestial holding scene
+      if (!currentNodes || currentNodes.length === 0 || !currentWords || currentWords.length === 0) {
+        // Draw occasional brilliant background starburst (Reference 5)
+        const pulse = 18 + Math.sin(now * 0.002) * 4;
+        drawCelestialStar(ctx, width * 0.5, height * 0.48, pulse, currentPalette.starActive, true, 1.0, now * 0.0003);
         ctx.restore();
         animationFrameId = requestAnimationFrame(render);
         return;
       }
 
-      // Compute dynamic micro-drift for each node
+      // Compute gentle celestial micro-drift for each node
       const tSec = now * 0.001;
       const animatedNodes: Array<{ x: number; y: number }> = [];
 
@@ -168,7 +147,10 @@ export const ConstellationCanvas: React.FC<ConstellationCanvasProps> = ({
         }
       }
 
-      // 3. Draw Connecting Constellation Edges
+      // Authoritative Active Word Index directly from audio clock
+      const activeIdx = findActiveWordIndex(currentWords, effectiveTimeMs);
+
+      // 2. Draw Constellation Hairlines (Reference geometry)
       const edges: ConstellationEdge[] = buildConstellationEdges(currentNodes.length);
 
       for (const edge of edges) {
@@ -176,81 +158,102 @@ export const ConstellationCanvas: React.FC<ConstellationCanvasProps> = ({
         const p2 = animatedNodes[edge.toIndex];
         if (!p1 || !p2) continue;
 
-        const isEdgeActive =
-          activeIdx !== -1 && (edge.fromIndex === activeIdx || edge.toIndex === activeIdx);
-        const isPastEdge = edge.toIndex < activeIdx;
+        const isCurrentActiveSegment =
+          activeIdx > 0 &&
+          ((edge.fromIndex === activeIdx - 1 && edge.toIndex === activeIdx) ||
+            (edge.fromIndex === activeIdx && edge.toIndex === activeIdx - 1));
 
-        // Progressive line infill based on playback time
-        const targetWord = currentWords[edge.toIndex];
-        let progress = 1.0;
-        if (targetWord && edge.toIndex === activeIdx) {
-          progress = Math.max(0.0, Math.min(1.0, (currentTimeMs - targetWord.startMs) / 180));
-        } else if (edge.toIndex > activeIdx) {
-          progress = 0.35; // Faint structural preview of future constellation
-        }
+        const isPastSegment = edge.toIndex <= activeIdx;
 
-        const edgeColor = isEdgeActive ? currentPalette.lineActive : currentPalette.lineInactive;
-        const edgeOpacity = isEdgeActive ? 0.9 : isPastEdge ? 0.45 : 0.25;
+        const edgeColor = isCurrentActiveSegment ? currentPalette.lineActive : currentPalette.lineInactive;
+        const edgeOpacity = isCurrentActiveSegment ? 0.95 : isPastSegment ? 0.6 : 0.28;
 
-        drawGraduatedLine(
-          ctx,
-          p1.x,
-          p1.y,
-          p2.x,
-          p2.y,
-          edgeColor,
-          edgeOpacity,
-          progress,
-          edge.hasTicks
-        );
+        drawConstellationHairline(ctx, p1.x, p1.y, p2.x, p2.y, edgeColor, edgeOpacity, isCurrentActiveSegment);
       }
 
-      // 4. Draw Star Vertices (Diamond Astroids)
+      // 3. Draw Static Star Vertices for each word node
       for (let i = 0; i < currentNodes.length; i++) {
         const p = animatedNodes[i];
-        const isActive = i === activeIdx;
-        const isPast = i < activeIdx;
-
-        const outerRadius = isActive ? 13 : isPast ? 7 : 5;
-        const starColor = isActive ? currentPalette.starActive : currentPalette.starInactive;
-
-        drawStarNode(ctx, p.x, p.y, outerRadius, starColor, isActive, true);
-      }
-
-      // 5. Focal Reticle Tracking Physics
-      if (activeIdx >= 0 && activeIdx < animatedNodes.length) {
-        const target = animatedNodes[activeIdx];
-        if (isReduced) {
-          reticleX = target.x;
-          reticleY = target.y;
-          reticleOpacity = 1.0;
-        } else {
-          // Smooth critically damped exponential lerp with dtSec
-          const lambda = 1.0 - Math.exp(-dtSec * 14.0);
-          reticleX += (target.x - reticleX) * lambda;
-          reticleY += (target.y - reticleY) * lambda;
-          reticleOpacity += (1.0 - reticleOpacity) * lambda;
-          reticleRotation += dtSec * 0.4;
+        // If the shooting star is currently at or traveling toward this node, skip drawing double star
+        const isCurrentlyOccupied = i === activeIdx;
+        if (!isCurrentlyOccupied) {
+          const isPast = i < activeIdx;
+          const twinkle = isReduced ? 1.0 : 0.8 + 0.2 * Math.sin(now * 0.002 + i);
+          drawStarVertex(ctx, p.x, p.y, isPast ? 7 : 6, currentPalette.starInactive, false, twinkle);
         }
-
-        drawFocalReticle(
-          ctx,
-          reticleX,
-          reticleY,
-          reticleRadius,
-          currentPalette.reticle,
-          reticleRotation,
-          reticleOpacity
-        );
-      } else {
-        reticleOpacity = Math.max(0, reticleOpacity - dtSec * 2);
       }
 
-      // 6. Perimeter Subtle Screen Bezel Glow
+      // 4. Draw Shooting Star with Luminous Tapered Tail (References 4 & 5)
+      if (activeIdx >= 0 && activeIdx < animatedNodes.length) {
+        const currentTargetNode = animatedNodes[activeIdx];
+        const targetWord = currentWords[activeIdx];
+
+        if (activeIdx === 0 || !targetWord) {
+          // Resting at word 0 with brilliant 8-pointed starburst (Reference 5)
+          const rayLen = 24 + Math.sin(now * 0.003) * 4;
+          drawCelestialStar(
+            ctx,
+            currentTargetNode.x,
+            currentTargetNode.y,
+            rayLen,
+            currentPalette.starActive,
+            true,
+            1.3,
+            now * 0.0004
+          );
+        } else {
+          const prevNode = animatedNodes[activeIdx - 1];
+          // Calculate flight interval: shooting star travels between (prevNode) and (currentTargetNode)
+          const wordDuration = targetWord.endMs - targetWord.startMs;
+          const transitSpan = Math.min(380, Math.max(160, wordDuration * 0.45));
+          const transitStart = targetWord.startMs - transitSpan * 0.4;
+          const transitEnd = targetWord.startMs + transitSpan * 0.6;
+
+          if (effectiveTimeMs < transitStart) {
+            // Still resting at previous node
+            const rayLen = 22 + Math.sin(now * 0.003) * 3;
+            drawCelestialStar(ctx, prevNode.x, prevNode.y, rayLen, currentPalette.starActive, true, 1.2, now * 0.0004);
+          } else if (effectiveTimeMs >= transitEnd) {
+            // Has arrived and is resting at current target node
+            const rayLen = 24 + Math.sin(now * 0.003) * 4;
+            drawCelestialStar(
+              ctx,
+              currentTargetNode.x,
+              currentTargetNode.y,
+              rayLen,
+              currentPalette.starActive,
+              true,
+              1.35,
+              now * 0.0004
+            );
+          } else {
+            // IN FLIGHT: Draw Shooting Star with Luminous Tapered Tail (Reference 4)
+            const u = Math.max(0.0, Math.min(1.0, (effectiveTimeMs - transitStart) / transitSpan));
+            // Smooth cubic ease-in-out
+            const ease = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+
+            const starX = prevNode.x + (currentTargetNode.x - prevNode.x) * ease;
+            const starY = prevNode.y + (currentTargetNode.y - prevNode.y) * ease;
+
+            drawShootingStar(
+              ctx,
+              starX,
+              starY,
+              prevNode.x,
+              prevNode.y,
+              u,
+              currentPalette.starActive,
+              now * 0.001
+            );
+          }
+        }
+      }
+
+      // 5. Subtle Perimeter Screen Bezel Glow
       ctx.strokeStyle = currentPalette.bezelGlow;
       ctx.lineWidth = 1.0;
-      ctx.globalAlpha = 0.35;
-      ctx.strokeRect(12, 12, width - 24, height - 24);
+      ctx.globalAlpha = 0.28;
+      ctx.strokeRect(16, 16, width - 32, height - 32);
 
       ctx.restore();
 

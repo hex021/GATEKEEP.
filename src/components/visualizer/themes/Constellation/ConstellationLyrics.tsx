@@ -16,7 +16,6 @@ interface ConstellationLyricsProps {
   isMobile: boolean;
   prefersReducedMotion?: boolean;
   onLineClick?: (timeMs: number) => void;
-  onActiveWordChange?: (wordIndex: number) => void;
 }
 
 export const ConstellationLyrics: React.FC<ConstellationLyricsProps> = ({
@@ -27,33 +26,27 @@ export const ConstellationLyrics: React.FC<ConstellationLyricsProps> = ({
   isMobile,
   prefersReducedMotion = false,
   onLineClick,
-  onActiveWordChange,
 }) => {
-  const [activeWordIndex, setActiveWordIndex] = useState<number>(-1);
+  const [activeWordIndex, setActiveWordIndex] = useState<number>(0);
 
-  // Discrete Word-Index Tracker: Polls store state without causing React 60fps cascades.
-  // Re-renders React ONLY when the active singing word index changes!
+  // Self-contained discrete active-word index tracker:
+  // Derived directly from the authoritative playback clock (usePlayerStore)
+  // WITHOUT triggering parent component updates during render!
   useEffect(() => {
     let animId: number;
 
     const checkWordIndex = () => {
-      const { currentTimeMs } = usePlayerStore.getState();
-      const currentIdx = findActiveWordIndex(words, currentTimeMs);
+      const { currentTimeMs, syncOffsetMs } = usePlayerStore.getState();
+      const effectiveTimeMs = currentTimeMs + syncOffsetMs;
+      const nextIdx = findActiveWordIndex(words, effectiveTimeMs);
 
-      setActiveWordIndex((prev) => {
-        if (prev !== currentIdx) {
-          onActiveWordChange?.(currentIdx);
-          return currentIdx;
-        }
-        return prev;
-      });
-
+      setActiveWordIndex((prev) => (prev !== nextIdx ? nextIdx : prev));
       animId = requestAnimationFrame(checkWordIndex);
     };
 
     animId = requestAnimationFrame(checkWordIndex);
     return () => cancelAnimationFrame(animId);
-  }, [words, onActiveWordChange]);
+  }, [words]);
 
   if (!words || words.length === 0 || nodes.length === 0 || activeLineIndex === -1) {
     return null;
@@ -64,9 +57,9 @@ export const ConstellationLyrics: React.FC<ConstellationLyricsProps> = ({
       <AnimatePresence mode="wait">
         <motion.div
           key={`phrase-${activeLineIndex}-${words[0]?.id || 0}`}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
+          exit={{ opacity: 0, y: -12 }}
           transition={
             prefersReducedMotion
               ? { duration: 0.15 }
@@ -84,7 +77,7 @@ export const ConstellationLyrics: React.FC<ConstellationLyricsProps> = ({
                 word={word}
                 node={node}
                 isActive={idx === activeWordIndex}
-                isPast={activeWordIndex !== -1 && idx < activeWordIndex}
+                isPast={idx < activeWordIndex}
                 palette={palette}
                 isMobile={isMobile}
                 prefersReducedMotion={prefersReducedMotion}

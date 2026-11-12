@@ -12,6 +12,9 @@ import {
 } from '@/components/visualizer/themes/Constellation/paletteExtractor';
 import {
   buildConstellationEdges,
+  drawCelestialStar,
+  drawShootingStar,
+  drawStarVertex,
 } from '@/components/visualizer/themes/Constellation/constellationGeometry';
 import {
   computeLayoutBounds,
@@ -180,4 +183,54 @@ test('ConstellationLayout: generateNodeLayout distributes words within safe area
     expect(n.baseY).toBeGreaterThanOrEqual(800 * 0.18);
     expect(n.baseY).toBeLessThanOrEqual(800 * 0.72);
   }
+});
+
+test('ConstellationGeometry: drawCelestialStar renders 8-point/4-point starburst without circular reticle', () => {
+  const operations = [];
+  const mockCtx = {
+    save: () => operations.push('save'),
+    restore: () => operations.push('restore'),
+    translate: () => operations.push('translate'),
+    rotate: () => operations.push('rotate'),
+    beginPath: () => operations.push('beginPath'),
+    moveTo: (x, y) => operations.push(`moveTo(${x},${y})`),
+    lineTo: (x, y) => operations.push(`lineTo(${x},${y})`),
+    closePath: () => operations.push('closePath'),
+    arc: (x, y, r) => operations.push(`arc(${r})`),
+    fill: () => operations.push('fill'),
+    stroke: () => operations.push('stroke'),
+    createLinearGradient: () => ({ addColorStop: () => {} }),
+    createRadialGradient: () => ({ addColorStop: () => {} }),
+  };
+
+  // Render celestial starburst
+  drawCelestialStar(mockCtx, 100, 100, 24, '#E2B857', 1.0, 8);
+  expect(operations).toContain('save');
+  expect(operations).toContain('restore');
+  expect(operations).toContain('fill');
+
+  // Verify no stroked reticle rings or target circles are drawn
+  expect(operations).not.toContain('stroke');
+});
+
+test('ConstellationGeometry: drawShootingStar renders tapered luminous tail between star nodes', () => {
+  let pathsDrawn = 0;
+  const mockCtx = {
+    save: () => {},
+    restore: () => {},
+    translate: () => {},
+    rotate: () => {},
+    beginPath: () => { pathsDrawn++; },
+    moveTo: () => {},
+    lineTo: () => {},
+    closePath: () => {},
+    arc: () => {},
+    fill: () => {},
+    stroke: () => {},
+    createLinearGradient: () => ({ addColorStop: () => {} }),
+    createRadialGradient: () => ({ addColorStop: () => {} }),
+  };
+
+  drawShootingStar(mockCtx, 50, 50, 200, 200, 0.75, '#FFFFFF', '#E2B857');
+  expect(pathsDrawn).toBeGreaterThan(0);
 });

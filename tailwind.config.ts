@@ -10,10 +10,10 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'NT Lamore', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'monospace'],
-        serif: ['var(--font-serif)', 'Georgia', 'serif'],
-        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-serif)', 'NT Lamore', 'Georgia', 'serif'],
+        display: ['var(--font-sans)', 'NT Lamore', 'system-ui', 'sans-serif'],
       },
       animation: {
         'spin-slow': 'spin 18s linear infinite',

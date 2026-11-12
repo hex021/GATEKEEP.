@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
+import { JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 import { ServiceWorkerRegister } from '@/components/pwa/ServiceWorkerRegister';
 
-const inter = Inter({
-  subsets: ['latin'],
+const ntLamore = localFont({
+  src: '../fonts/NT-Lamore-Mini-Edition.otf',
   variable: '--font-sans',
   display: 'swap',
 });
@@ -46,7 +47,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} font-sans bg-[#05050A] text-white antialiased min-h-screen selection:bg-violet-600/30 selection:text-white`}
+        className={`${ntLamore.variable} ${jetbrainsMono.variable} font-sans bg-[#05050A] text-white antialiased min-h-screen selection:bg-violet-600/30 selection:text-white`}
       >
         <AuthProvider>
           <ServiceWorkerRegister />

@@ -27,7 +27,7 @@ export const ConstellationWord: React.FC<ConstellationWordProps> = ({
   prefersReducedMotion = false,
   onClick,
 }) => {
-  // Editorial casing: lowercase except pronouns and initial sentence
+  // Editorial casing: capitalize initial pronoun "I" and sentence starts
   const formattedText =
     word.text.length === 1 && word.text.toLowerCase() === 'i'
       ? 'I'
@@ -40,18 +40,18 @@ export const ConstellationWord: React.FC<ConstellationWordProps> = ({
       className="absolute pointer-events-auto cursor-pointer select-none origin-top -translate-x-1/2"
       style={{
         left: node.baseX,
-        top: node.baseY + 16, // Placed directly beneath the star node
+        top: node.baseY + 18,
       }}
       initial={false}
       animate={{
-        scale: isActive ? (isMobile ? 1.35 : 1.7) : isPast ? 0.95 : 0.9,
-        opacity: isActive ? 1.0 : isPast ? 0.45 : 0.35,
+        scale: isActive ? (isMobile ? 1.25 : 1.45) : isPast ? 0.95 : 0.92,
+        opacity: isActive ? 1.0 : isPast ? 0.72 : 0.65,
         y: isActive ? 4 : 0,
       }}
       transition={
         prefersReducedMotion
           ? { duration: 0.1 }
-          : { type: 'spring', stiffness: 280, damping: 24, mass: 0.8 }
+          : { type: 'spring', stiffness: 260, damping: 22, mass: 0.8 }
       }
       onClick={() => onClick?.(word.startMs)}
     >
@@ -59,17 +59,17 @@ export const ConstellationWord: React.FC<ConstellationWordProps> = ({
         className={`font-sans tracking-wide transition-colors duration-200 block text-center whitespace-nowrap ${
           isActive
             ? isMobile
-              ? 'text-lg font-bold'
-              : 'text-xl md:text-2xl font-bold'
+              ? 'text-3xl font-bold tracking-tight'
+              : 'text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight'
             : isMobile
-            ? 'text-xs font-medium'
-            : 'text-sm font-medium'
+            ? 'text-sm font-medium'
+            : 'text-base md:text-lg lg:text-xl font-medium'
         }`}
         style={{
           color: isActive ? palette.textActive : palette.textInactive,
           textShadow: isActive
-            ? `0 0 16px ${palette.textActive}80, 0 0 32px ${palette.textActive}40`
-            : 'none',
+            ? `0 0 24px ${palette.textActive}aa, 0 0 48px ${palette.textActive}55, 0 2px 10px rgba(0,0,0,0.8)`
+            : '0 1px 4px rgba(0,0,0,0.6)',
         }}
       >
         {formattedText}

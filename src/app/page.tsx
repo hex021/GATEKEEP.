@@ -255,12 +255,12 @@ export default function HomePage() {
           </span>
           <div className="h-3 w-[1px] bg-white/20 hidden xs:block" />
           {isAuthenticated ? (
-            <div className="hidden xs:flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[9px] font-mono text-emerald-300">
+            <div className="hidden xs:flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[11px] font-mono text-emerald-300">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span>SPOTIFY LIVE</span>
             </div>
           ) : (
-            <span className="hidden xs:block text-[9px] font-mono text-neutral-500 uppercase tracking-widest">
+            <span className="hidden xs:block text-[11px] font-mono text-neutral-500 uppercase tracking-widest">
               STUDIO HUD
             </span>
           )}
@@ -271,12 +271,12 @@ export default function HomePage() {
           {/* Quick Paste Link / Search */}
           <button
             onClick={() => setIsCommandBarOpen(true)}
-            className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-black/60 hover:bg-white hover:text-black border border-white/15 text-[10px] font-mono uppercase tracking-wider text-neutral-300 transition-all cursor-pointer shadow-sm group"
+            className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-black/60 hover:bg-white hover:text-black border border-white/15 text-xs sm:text-sm font-medium uppercase tracking-wider text-neutral-300 transition-all cursor-pointer shadow-sm group"
             title="Paste Spotify link or search (⌘K)"
           >
             <Command size={12} className="text-neutral-400 group-hover:text-black transition-colors" />
             <span>Paste Link</span>
-            <span className="font-mono text-[9px] bg-white/10 group-hover:bg-black/10 px-1 py-0.2 rounded text-neutral-400 group-hover:text-black hidden sm:inline">
+            <span className="font-mono text-[11px] bg-white/10 group-hover:bg-black/10 px-1 py-0.2 rounded text-neutral-400 group-hover:text-black hidden sm:inline">
               ⌘K
             </span>
           </button>
@@ -287,7 +287,7 @@ export default function HomePage() {
               playMechanicalClick();
               setIsThemeSelectorOpen(true);
             }}
-            className="flex items-center space-x-2 px-2.5 sm:px-3 py-1.5 rounded-lg bg-black/60 hover:bg-white hover:text-black border border-white/15 text-[10px] font-mono uppercase tracking-wider text-neutral-300 transition-all cursor-pointer shadow-sm group"
+            className="flex items-center space-x-2 px-2.5 sm:px-3 py-1.5 rounded-lg bg-black/60 hover:bg-white hover:text-black border border-white/15 text-xs sm:text-sm font-medium uppercase tracking-wider text-neutral-300 transition-all cursor-pointer shadow-sm group"
             title="Open Visualizer Theme Gallery (16 Themes, Shortcut: 'V')"
           >
             <span
@@ -297,7 +297,7 @@ export default function HomePage() {
             <span className="font-semibold tracking-wider">
               {getThemeMeta(visualizerMode)?.name || 'Theme'}
             </span>
-            <span className="text-[9px] text-neutral-500 group-hover:text-black/60 font-mono">
+            <span className="text-[11px] text-neutral-500 group-hover:text-black/60 font-mono">
               ({VISUALIZER_THEMES.length})
             </span>
             <ChevronDown size={11} className="text-neutral-500 group-hover:text-black/60 transition-transform" />
@@ -309,7 +309,7 @@ export default function HomePage() {
               playModeWhoosh();
               toggleStudyMode();
             }}
-            className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-mono uppercase tracking-wider transition-all cursor-pointer ${
+            className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border text-xs sm:text-sm font-medium uppercase tracking-wider transition-all cursor-pointer ${
               isStudyMode
                 ? 'bg-cyan-500 text-black font-bold border-cyan-400 shadow-md shadow-cyan-500/20'
                 : 'bg-black/60 hover:bg-white hover:text-black border-white/15 text-neutral-400'
@@ -326,7 +326,7 @@ export default function HomePage() {
               playMechanicalClick();
               setIsStoryModalOpen(true);
             }}
-            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-black/60 hover:bg-white hover:text-black border border-white/15 text-[10px] font-mono uppercase tracking-wider text-neutral-400 transition-all cursor-pointer"
+            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-black/60 hover:bg-white hover:text-black border border-white/15 text-xs sm:text-sm font-medium uppercase tracking-wider text-neutral-400 transition-all cursor-pointer"
             title="Export 9:16 Story Card"
           >
             <Sparkles size={12} />

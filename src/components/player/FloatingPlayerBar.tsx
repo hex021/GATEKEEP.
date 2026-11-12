@@ -287,17 +287,17 @@ export function FloatingPlayerBar({
 
         <div className="flex flex-col min-w-0">
           <span
-            className="text-sm font-semibold tracking-tight text-white truncate max-w-[160px] sm:max-w-[200px]"
+            className="text-sm sm:text-base font-semibold tracking-tight text-white truncate max-w-[160px] sm:max-w-[200px]"
             title={currentTrack.title}
           >
             {currentTrack.title}
           </span>
-          <div className="text-xs font-mono text-neutral-400 flex items-center gap-2 truncate">
+          <div className="text-xs sm:text-sm font-mono text-neutral-400 flex items-center gap-2 truncate">
             <span className="truncate max-w-[90px] sm:max-w-[120px]" title={currentTrack.artist}>
               {currentTrack.artist}
             </span>
             <span className="text-neutral-600 font-sans">•</span>
-            <span className="text-neutral-400 font-mono text-[11px] tabular-nums flex-shrink-0">
+            <span className="text-neutral-400 font-mono text-xs sm:text-sm tabular-nums flex-shrink-0">
               {formatTime(displayTime)} / {formatTime(durationMs)}
             </span>
           </div>
@@ -347,7 +347,7 @@ export function FloatingPlayerBar({
               playModeWhoosh();
               setShowThemePicker(!showThemePicker);
             }}
-            className="border border-white/15 px-2.5 py-1 rounded-md text-[11px] font-mono tracking-wider text-neutral-300 hover:border-white/40 hover:text-white transition cursor-pointer flex items-center gap-1.5"
+            className="border border-white/15 px-2.5 py-1.5 rounded-md text-xs font-semibold tracking-wider text-neutral-300 hover:border-white/40 hover:text-white transition cursor-pointer flex items-center gap-1.5"
             title="Switch Visualizer Theme Engine (Click for Menu, Shortcut: 'V')"
           >
             <span>
