@@ -19,7 +19,8 @@ export type VisualizerMode =
   | 'bouncing-ball'
   | 'mirror-world'
   | 'emotional-damage'
-  | 'newspaper';
+  | 'newspaper'
+  | 'constellation';
 
 export const THEME_MODES: VisualizerMode[] = [
   'video-edit',
@@ -37,6 +38,7 @@ export const THEME_MODES: VisualizerMode[] = [
   'mirror-world',
   'emotional-damage',
   'newspaper',
+  'constellation',
 ];
 
 export interface CurrentTrack {

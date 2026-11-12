@@ -26,7 +26,8 @@ export type ThemeId =
   | 'bouncing-ball'
   | 'mirror-world'
   | 'emotional-damage'
-  | 'newspaper';
+  | 'newspaper'
+  | 'constellation';
 
 export interface ThemeMeta {
   id: ThemeId;
@@ -160,6 +161,14 @@ export const VISUALIZER_THEMES: ThemeMeta[] = [
     tagline: 'Vintage Broadsheet Front Page, Column Rules & Bodoni Headlines',
     accentColor: '#D8D2C2',
     bgPreviewClass: 'bg-[#141210] border border-stone-600',
+  },
+  {
+    id: 'constellation',
+    name: 'Constellation',
+    category: 'Atmospheric',
+    tagline: 'Kinetic Star Mapping, Geometric Word Links & Celestial Drift',
+    accentColor: '#E2B857',
+    bgPreviewClass: 'bg-[#030308] border border-amber-400/30',
   },
 ];
 

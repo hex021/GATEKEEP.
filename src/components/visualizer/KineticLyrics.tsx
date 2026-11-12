@@ -20,6 +20,7 @@ import { BouncingBall } from '@/components/visualizer/themes/BouncingBall';
 import { MirrorWorld } from '@/components/visualizer/themes/MirrorWorld';
 import { EmotionalDamage } from '@/components/visualizer/themes/EmotionalDamage';
 import { NewspaperTheme } from '@/components/visualizer/themes/NewspaperTheme';
+import { ConstellationTheme } from '@/components/visualizer/themes/Constellation/ConstellationTheme';
 
 export { type VisualizerMode };
 
@@ -178,6 +179,8 @@ export function KineticLyrics({
           ? 'Emotional Damage'
           : activeMode === 'newspaper'
           ? 'Newspaper'
+          : activeMode === 'constellation'
+          ? 'Constellation'
           : 'Apple Music Spatial';
       triggerToast(`Visualizer: ${label}`);
       if (typeof window !== 'undefined') {
@@ -399,6 +402,10 @@ export function KineticLyrics({
 
       {activeMode === 'newspaper' && (
         <NewspaperTheme lyrics={lyrics} onLineClick={handleLineClick} />
+      )}
+
+      {activeMode === 'constellation' && (
+        <ConstellationTheme lyrics={lyrics} onLineClick={handleLineClick} />
       )}
 
       {activeMode === 'apple-spatial' && (

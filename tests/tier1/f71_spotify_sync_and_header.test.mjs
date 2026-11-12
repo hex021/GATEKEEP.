@@ -38,8 +38,8 @@ test('parseSpotifyUrl: successfully handles raw spotify: URI format', () => {
   expect(res.id).toBe('7qiZfU4dY1lWllzX7mPBI3');
 });
 
-test('ThemeRegistry: total theme count is 15 and getThemeMeta correctly looks up metadata', () => {
-  expect(VISUALIZER_THEMES).toHaveLength(15);
+test('ThemeRegistry: total theme count is 16 and getThemeMeta correctly looks up metadata', () => {
+  expect(VISUALIZER_THEMES).toHaveLength(16);
   const swiss = getThemeMeta('swiss-editorial');
   expect(swiss).not.toBe(undefined);
   expect(swiss.name).toBe('Swiss Editorial');
@@ -48,6 +48,12 @@ test('ThemeRegistry: total theme count is 15 and getThemeMeta correctly looks up
   const glitch = getThemeMeta('glitchcore');
   expect(glitch).not.toBe(undefined);
   expect(glitch.accentColor).toBe('#00F0FF');
+
+  const constellation = getThemeMeta('constellation');
+  expect(constellation).not.toBe(undefined);
+  expect(constellation.name).toBe('Constellation');
+  expect(constellation.accentColor).toBe('#E2B857');
+  expect(constellation.category).toBe('Atmospheric');
 });
 
 test('useSpotifyStore: initAuth automatically switches to spotify mode when credentials exist', () => {

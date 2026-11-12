@@ -381,6 +381,8 @@ export function FloatingPlayerBar({
                 ? 'EMOTIONAL'
                 : visualizerMode === 'newspaper'
                 ? 'NEWSPAPER'
+                : visualizerMode === 'constellation'
+                ? 'CONSTELLATION'
                 : 'SPATIAL'}
             </span>
             <span className="text-[8px] text-neutral-500">▼</span>
@@ -432,6 +434,7 @@ export function FloatingPlayerBar({
                 { id: 'cyberpunk', name: 'CRT', desc: 'Analog VHS Tear & Phosphor Halation' },
                 { id: 'xerox-89', name: 'XEROX_89', desc: '1-Bit Floyd-Steinberg & Ransom Note' },
                 { id: 'thermal-flir', name: 'THERMAL FLIR', desc: 'Ironbow Luma & Convective Bloom' },
+                { id: 'constellation', name: 'CONSTELLATION', desc: 'Kinetic Star Mapping & Geometric Word Links' },
               ].map((th) => {
                 const isActive = visualizerMode === th.id;
                 return (

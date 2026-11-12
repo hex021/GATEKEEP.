@@ -235,10 +235,10 @@ export default function HomePage() {
       </div>
 
       {/* M3 WebGL Ambient Fluid Shader Background & Dust */}
-      <div className={visualizerMode === 'cyberpunk' ? 'opacity-20 transition-opacity duration-700' : 'opacity-100 transition-opacity duration-700'}>
+      <div className={visualizerMode === 'cyberpunk' || visualizerMode === 'constellation' ? 'opacity-20 transition-opacity duration-700' : 'opacity-100 transition-opacity duration-700'}>
         <AmbientShader />
       </div>
-      {visualizerMode !== 'cyberpunk' && <ParticleDust />}
+      {visualizerMode !== 'cyberpunk' && visualizerMode !== 'constellation' && <ParticleDust />}
 
       {/* Auto-Hiding Top Header HUD (fades out after 2200ms idle) */}
       <header
@@ -288,7 +288,7 @@ export default function HomePage() {
               setIsThemeSelectorOpen(true);
             }}
             className="flex items-center space-x-2 px-2.5 sm:px-3 py-1.5 rounded-lg bg-black/60 hover:bg-white hover:text-black border border-white/15 text-[10px] font-mono uppercase tracking-wider text-neutral-300 transition-all cursor-pointer shadow-sm group"
-            title="Open Visualizer Theme Gallery (15 Themes, Shortcut: 'V')"
+            title="Open Visualizer Theme Gallery (16 Themes, Shortcut: 'V')"
           >
             <span
               className="w-1.5 h-1.5 rounded-full flex-shrink-0"

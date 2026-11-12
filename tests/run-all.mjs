@@ -55,7 +55,8 @@ async function loadSuites() {
       import('./tier1/f56_f60_nextauth_spotify.test.mjs'),
       import('./tier1/f61_f65_study_hud_pip_verification.test.mjs'),
       import('./tier1/f66_f70_new_themes.test.mjs'),
-      import('./tier1/f71_spotify_sync_and_header.test.mjs')
+      import('./tier1/f71_spotify_sync_and_header.test.mjs'),
+      import('./tier1/f72_constellation_theme.test.mjs')
     );
   }
 
