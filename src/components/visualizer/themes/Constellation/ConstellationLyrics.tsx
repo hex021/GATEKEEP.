@@ -18,6 +18,12 @@ interface ConstellationLyricsProps {
   onLineClick?: (timeMs: number) => void;
 }
 
+interface VisibleWordEntry {
+  idx: number;
+  opacity: number;
+  isActive: boolean;
+}
+
 export const ConstellationLyrics: React.FC<ConstellationLyricsProps> = ({
   words,
   nodes,
@@ -27,20 +33,64 @@ export const ConstellationLyrics: React.FC<ConstellationLyricsProps> = ({
   prefersReducedMotion = false,
   onLineClick,
 }) => {
-  const [activeWordIndex, setActiveWordIndex] = useState<number>(0);
+  // Self-contained display state tracker derived directly from the authoritative playback clock.
+  // CRITICAL V3 RULE: Only current active word (and immediately preceding word during transit) are ever rendered.
+  // Future words are 100% invisible!
+  const [visibleEntries, setVisibleEntries] = useState<VisibleWordEntry[]>([]);
 
-  // Self-contained discrete active-word index tracker:
-  // Derived directly from the authoritative playback clock (usePlayerStore)
-  // WITHOUT triggering parent component updates during render!
   useEffect(() => {
     let animId: number;
 
     const checkWordIndex = () => {
       const { currentTimeMs, syncOffsetMs } = usePlayerStore.getState();
       const effectiveTimeMs = currentTimeMs + syncOffsetMs;
-      const nextIdx = findActiveWordIndex(words, effectiveTimeMs);
+      const activeIdx = findActiveWordIndex(words, effectiveTimeMs);
 
-      setActiveWordIndex((prev) => (prev !== nextIdx ? nextIdx : prev));
+      if (activeIdx === -1 || !words || words.length === 0) {
+        setVisibleEntries([]);
+        animId = requestAnimationFrame(checkWordIndex);
+        return;
+      }
+
+      if (activeIdx === 0) {
+        // Stage 1: Only the first word is visible. Zero future words rendered!
+        setVisibleEntries([{ idx: 0, opacity: 1.0, isActive: true }]);
+        animId = requestAnimationFrame(checkWordIndex);
+        return;
+      }
+
+      // Stage 2 & 3: Active transition between activeIdx - 1 and activeIdx
+      const currWord = words[activeIdx];
+      const prevWord = words[activeIdx - 1];
+      const deltaT = currWord.startMs - prevWord.startMs;
+      const transitSpan = Math.min(480, Math.max(180, deltaT * 0.45));
+      const transitStart = currWord.startMs - transitSpan * 0.65;
+      const transitEnd = currWord.startMs + transitSpan * 0.35;
+
+      const entries: VisibleWordEntry[] = [];
+
+      if (effectiveTimeMs < transitStart) {
+        // Pre-flight: Previous word is resting and active; current destination word is COMPLETELY INVISIBLE
+        entries.push({ idx: activeIdx - 1, opacity: 1.0, isActive: true });
+      } else if (effectiveTimeMs >= transitEnd) {
+        // Arrival: Shooting star has reached destination. Current word is 100% active, previous is gone.
+        entries.push({ idx: activeIdx, opacity: 1.0, isActive: true });
+      } else {
+        // In-flight: Shooting star is travelling.
+        const u = Math.max(0, Math.min(1, (effectiveTimeMs - transitStart) / (transitEnd - transitStart)));
+        // Previous word gradually fades away
+        const prevOpacity = Math.max(0, 1 - u * 1.5);
+        if (prevOpacity > 0.05) {
+          entries.push({ idx: activeIdx - 1, opacity: prevOpacity, isActive: false });
+        }
+        // Destination word only reveals as the shooting star reaches destination (u > 0.82)
+        if (u > 0.82) {
+          const currOpacity = Math.min(1, (u - 0.82) / 0.18);
+          entries.push({ idx: activeIdx, opacity: currOpacity, isActive: true });
+        }
+      }
+
+      setVisibleEntries(entries);
       animId = requestAnimationFrame(checkWordIndex);
     };
 
@@ -67,17 +117,18 @@ export const ConstellationLyrics: React.FC<ConstellationLyricsProps> = ({
           }
           className="relative w-full h-full"
         >
-          {words.map((word, idx) => {
+          {visibleEntries.map(({ idx, opacity, isActive }) => {
+            const word = words[idx];
             const node = nodes[idx];
-            if (!node) return null;
+            if (!word || !node) return null;
 
             return (
               <ConstellationWord
                 key={word.id}
                 word={word}
                 node={node}
-                isActive={idx === activeWordIndex}
-                isPast={idx < activeWordIndex}
+                isActive={isActive}
+                opacity={opacity}
                 palette={palette}
                 isMobile={isMobile}
                 prefersReducedMotion={prefersReducedMotion}

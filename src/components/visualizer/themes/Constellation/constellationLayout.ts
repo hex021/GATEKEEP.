@@ -70,75 +70,117 @@ export function generateNodeLayout(
   if (!words || words.length === 0) return [];
 
   const bounds = computeLayoutBounds(width, height);
-  const rng = seededRandom(lineSeed + words.length * 37);
-
   const count = words.length;
   const nodes: StarNode[] = [];
   const placedPoints: Array<{ x: number; y: number }> = [];
 
-  // Minimum separation between nodes so text has ample room to breathe
-  const minDistance = bounds.isMobile
-    ? Math.max(50, width * 0.18)
-    : Math.max(90, Math.min(140, width * 0.11));
+  const spreadX = bounds.stageXMax - bounds.stageXMin;
+  const spreadY = bounds.stageYMax - bounds.stageYMin;
 
-  // Generous spatial span across the display stage (Reference 1 improvement)
-  const spreadWidth = (bounds.stageXMax - bounds.stageXMin);
-  const spreadHeight = (bounds.stageYMax - bounds.stageYMin);
+  // Minimum distance between consecutively activated words so the shooting star has a meaningful journey
+  const minHopDistance = bounds.isMobile
+    ? Math.max(65, width * 0.22)
+    : Math.max(120, width * 0.18);
 
-  // Angular distribution: gentle sweeping celestial arc or wave
-  const arcSpan = Math.min(Math.PI * 1.6, Math.max(Math.PI * 0.8, (count + 1) * 0.4));
-  const baseAngle = -arcSpan * 0.5 + (rng() - 0.5) * 0.35;
+  // General collision avoidance threshold to prevent overlap
+  const minSeparation = bounds.isMobile
+    ? Math.max(45, width * 0.14)
+    : Math.max(85, width * 0.10);
 
   for (let i = 0; i < count; i++) {
     const word = words[i];
-    const t = count === 1 ? 0.5 : i / (count - 1);
+    // Deterministic seeded generator per word based on line seed, word index and text hash
+    let wordHash = 0;
+    for (let c = 0; c < word.text.length; c++) {
+      wordHash = (wordHash * 31 + word.text.charCodeAt(c)) | 0;
+    }
+    const rng = seededRandom(Math.abs(lineSeed + i * 1999 + wordHash));
 
-    // Natural horizontal wave progression across the screen
-    // Left-to-right flow with organic vertical wave modulation
-    const xProgress = bounds.stageXMin + t * spreadWidth;
-    // Radial vertical modulation using alternate shells for starry depth
-    const shellOffset = ((i % 2 === 0 ? 1 : -1) * 0.28 + (rng() - 0.5) * 0.15) * spreadHeight;
-    const yProgress = bounds.centerY + shellOffset;
+    let bestX = bounds.centerX;
+    let bestY = bounds.centerY;
+    let bestScore = -Infinity;
 
-    let candidateX = Math.max(bounds.stageXMin, Math.min(bounds.stageXMax, xProgress));
-    let candidateY = Math.max(bounds.stageYMin, Math.min(bounds.stageYMax, yProgress));
+    // Sample candidate spatial positions across the entire usable visual sky (V3 Random Placement)
+    const candidateTries = 32;
+    for (let attempt = 0; attempt < candidateTries; attempt++) {
+      // Unbiased random coordinates across the full safe area
+      const candX = bounds.stageXMin + rng() * spreadX;
+      const candY = bounds.stageYMin + rng() * spreadY;
 
-    // Collision avoidance
-    let finalX = candidateX;
-    let finalY = candidateY;
-    let attempts = 0;
-    const maxAttempts = 16;
-    let currentMinDist = minDistance;
-
-    while (attempts < maxAttempts) {
+      let score = 100;
       let collides = false;
-      for (const p of placedPoints) {
-        if (Math.hypot(finalX - p.x, finalY - p.y) < currentMinDist) {
+
+      // Check distance from previous word (need a good hop distance)
+      if (i > 0) {
+        const prevP = placedPoints[i - 1];
+        const distFromPrev = Math.hypot(candX - prevP.x, candY - prevP.y);
+        if (distFromPrev < minHopDistance * 0.8) {
+          score -= (minHopDistance - distFromPrev) * 2;
+        } else {
+          score += Math.min(200, distFromPrev);
+        }
+      }
+
+      // Check distance against other recently placed words
+      for (let pIdx = 0; pIdx < placedPoints.length; pIdx++) {
+        const p = placedPoints[pIdx];
+        const d = Math.hypot(candX - p.x, candY - p.y);
+        if (d < minSeparation) {
           collides = true;
+          score -= 500;
           break;
         }
       }
 
-      if (!collides) break;
-
-      attempts++;
-      const pushAngle = (attempts * 0.6) + (rng() - 0.5);
-      const pushDist = attempts * 18;
-      finalX = Math.max(bounds.stageXMin, Math.min(bounds.stageXMax, candidateX + Math.cos(pushAngle) * pushDist));
-      finalY = Math.max(bounds.stageYMin, Math.min(bounds.stageYMax, candidateY + Math.sin(pushAngle) * pushDist));
-
-      if (attempts === 8) {
-        currentMinDist *= 0.65;
+      if (!collides && score > bestScore) {
+        bestScore = score;
+        bestX = candX;
+        bestY = candY;
+      } else if (bestScore === -Infinity) {
+        bestX = candX;
+        bestY = candY;
       }
     }
 
+    // Ensure within exact safe boundaries
+    const finalX = Math.max(bounds.stageXMin, Math.min(bounds.stageXMax, bestX));
+    const finalY = Math.max(bounds.stageYMin, Math.min(bounds.stageYMax, bestY));
     placedPoints.push({ x: finalX, y: finalY });
 
-    // Drift physics parameters (T ~ 4.5s to 7.0s)
+    // Curved trajectory control points from previous node (i-1) to this node (i)
+    let cp1X = finalX;
+    let cp1Y = finalY;
+    let cp2X = finalX;
+    let cp2Y = finalY;
+
+    if (i > 0) {
+      const pPrev = placedPoints[i - 1];
+      const dx = finalX - pPrev.x;
+      const dy = finalY - pPrev.y;
+      const hopDist = Math.hypot(dx, dy) || 1;
+      const ux = dx / hopDist;
+      const uy = dy / hopDist;
+      const nx = -uy;
+      const ny = ux;
+
+      // Organic curvature perpendicular to chord
+      const curveSign = rng() > 0.5 ? 1 : -1;
+      const curveMag = hopDist * (0.16 + rng() * 0.22) * curveSign;
+
+      cp1X = pPrev.x + ux * (hopDist * 0.33) + nx * curveMag;
+      cp1Y = pPrev.y + uy * (hopDist * 0.33) + ny * curveMag;
+      cp2X = pPrev.x + ux * (hopDist * 0.67) + nx * (curveMag * (0.7 + rng() * 0.5));
+      cp2Y = pPrev.y + uy * (hopDist * 0.67) + ny * (curveMag * (0.7 + rng() * 0.5));
+    }
+
+    // Micro-drift parameters
     const driftFreqX = 0.85 + rng() * 0.5;
     const driftFreqY = 0.75 + rng() * 0.5;
     const driftPhaseX = rng() * Math.PI * 2;
     const driftPhaseY = rng() * Math.PI * 2;
+
+    // Deterministic word-level font size nuance (Part 11.B3)
+    const scaleFactor = 0.94 + rng() * 0.12;
 
     nodes.push({
       id: word.id,
@@ -152,7 +194,12 @@ export function generateNodeLayout(
       driftFreqX,
       driftFreqY,
       size: 10,
-      opacity: 0.7,
+      opacity: 1.0,
+      cp1X,
+      cp1Y,
+      cp2X,
+      cp2Y,
+      scaleFactor,
     });
   }
 

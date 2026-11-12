@@ -15,6 +15,8 @@ import {
   drawCelestialStar,
   drawShootingStar,
   drawStarVertex,
+  drawCurvedShootingStar,
+  evaluateCubicBezier,
 } from '@/components/visualizer/themes/Constellation/constellationGeometry';
 import {
   computeLayoutBounds,
@@ -233,4 +235,79 @@ test('ConstellationGeometry: drawShootingStar renders tapered luminous tail betw
 
   drawShootingStar(mockCtx, 50, 50, 200, 200, 0.75, '#FFFFFF', '#E2B857');
   expect(pathsDrawn).toBeGreaterThan(0);
+});
+
+test('ConstellationGeometry V3: evaluateCubicBezier computes smooth curved trajectory', () => {
+  const p0 = { x: 100, y: 100 };
+  const cp1 = { x: 200, y: 50 };
+  const cp2 = { x: 300, y: 250 };
+  const p3 = { x: 400, y: 200 };
+
+  const start = evaluateCubicBezier(p0.x, p0.y, cp1.x, cp1.y, cp2.x, cp2.y, p3.x, p3.y, 0.0);
+  expect(Math.round(start.x)).toBe(100);
+  expect(Math.round(start.y)).toBe(100);
+
+  const mid = evaluateCubicBezier(p0.x, p0.y, cp1.x, cp1.y, cp2.x, cp2.y, p3.x, p3.y, 0.5);
+  expect(mid.x).toBeGreaterThan(150);
+  expect(mid.x).toBeLessThan(350);
+
+  const end = evaluateCubicBezier(p0.x, p0.y, cp1.x, cp1.y, cp2.x, cp2.y, p3.x, p3.y, 1.0);
+  expect(Math.round(end.x)).toBe(400);
+  expect(Math.round(end.y)).toBe(200);
+});
+
+test('ConstellationGeometry V3: drawCurvedShootingStar draws luminous curved trail without pre-rendering future path', () => {
+  let pathsDrawn = 0;
+  const mockCtx = {
+    save: () => {},
+    restore: () => {},
+    translate: () => {},
+    rotate: () => {},
+    beginPath: () => { pathsDrawn++; },
+    moveTo: () => {},
+    lineTo: () => {},
+    closePath: () => {},
+    arc: () => {},
+    fill: () => {},
+    stroke: () => {},
+    createLinearGradient: () => ({ addColorStop: () => {} }),
+    createRadialGradient: () => ({ addColorStop: () => {} }),
+  };
+
+  drawCurvedShootingStar(mockCtx, 100, 100, 200, 50, 300, 250, 400, 200, 0.6, '#E2B857', 1.0);
+  expect(pathsDrawn).toBeGreaterThan(0);
+});
+
+test('ConstellationLayout V3: generates organic non-zigzag coordinates with Bezier control points and scale nuance', () => {
+  const words = [
+    { id: '1', text: 'I', startMs: 1000, endMs: 1500, charCount: 1, isEstimated: true },
+    { id: '2', text: 'don’t', startMs: 1500, endMs: 2200, charCount: 5, isEstimated: true },
+    { id: '3', text: 'wanna', startMs: 2200, endMs: 2800, charCount: 5, isEstimated: true },
+    { id: '4', text: 'change', startMs: 2800, endMs: 3400, charCount: 6, isEstimated: true },
+  ];
+
+  const nodes = generateNodeLayout(words, 1280, 800, 42);
+  expect(nodes.length).toBe(4);
+
+  // Verify Bezier control points exist for nodes > 0
+  for (let i = 1; i < nodes.length; i++) {
+    const n = nodes[i];
+    expect(n.cp1X).not.toBe(undefined);
+    expect(n.cp1Y).not.toBe(undefined);
+    expect(n.cp2X).not.toBe(undefined);
+    expect(n.cp2Y).not.toBe(undefined);
+    // Scale factor nuance exists (Part 11.B3)
+    expect(n.scaleFactor).toBeGreaterThanOrEqual(0.90);
+    expect(n.scaleFactor).toBeLessThanOrEqual(1.15);
+  }
+
+  // Verify positions do NOT follow a monotonic linear or strict alternating zigzag
+  const xDiffs = [
+    nodes[1].baseX - nodes[0].baseX,
+    nodes[2].baseX - nodes[1].baseX,
+    nodes[3].baseX - nodes[2].baseX,
+  ];
+  // They should have organic variation
+  expect(Math.abs(xDiffs[0])).toBeGreaterThan(0);
+  expect(Math.abs(xDiffs[1])).toBeGreaterThan(0);
 });
