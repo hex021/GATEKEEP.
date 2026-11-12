@@ -31,7 +31,7 @@ export function SpotifySetupModal({ isOpen, onClose }: SpotifySetupModalProps) {
   const logout = useSpotifyStore((s) => s.logout);
 
   const [inputVal, setInputVal] = useState(clientId);
-  const [copied, setCopied] = useState(false);
+  const [copiedCallback, setCopiedCallback] = useState(false);
   const [copiedAuth, setCopiedAuth] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [redirectUri, setRedirectUri] = useState('');
@@ -52,10 +52,10 @@ export function SpotifySetupModal({ isOpen, onClose }: SpotifySetupModalProps) {
 
   const nextAuthUri = redirectUri ? redirectUri.replace(/\/callback$/, '/api/auth/callback/spotify') : '';
 
-  const handleCopyUri = () => {
+  const handleCopyCallback = () => {
     navigator.clipboard.writeText(redirectUri);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedCallback(true);
+    setTimeout(() => setCopiedCallback(false), 2000);
   };
 
   const handleCopyAuthUri = () => {
@@ -67,6 +67,15 @@ export function SpotifySetupModal({ isOpen, onClose }: SpotifySetupModalProps) {
   const handleUnifiedConnect = async () => {
     const trimmed = inputVal.trim();
     if (trimmed) {
+      if (trimmed.length !== 32 || !/^[a-fA-F0-9]{32}$/.test(trimmed)) {
+        setError(
+          trimmed.length > 32
+            ? `Client ID has ${trimmed.length} characters (must be exactly 32). It appears to be double-pasted or concatenated.`
+            : `Client ID must be exactly 32 hexadecimal characters (currently ${trimmed.length}).`
+        );
+        setShowAdvanced(true);
+        return;
+      }
       saveClientId(trimmed);
       try {
         await initiateSpotifyLogin(trimmed);
@@ -188,10 +197,27 @@ export function SpotifySetupModal({ isOpen, onClose }: SpotifySetupModalProps) {
               </button>
 
               {showAdvanced && (
-                <div className="p-4 pt-1 border-t border-white/10 space-y-3 text-xs">
-                  <div className="space-y-1">
+                <div className="p-4 pt-1 border-t border-white/10 space-y-4 text-xs">
+                  <div className="space-y-1.5">
                     <label className="text-[11px] font-semibold text-neutral-300 flex items-center justify-between">
                       <span>Custom Spotify Client ID (Optional)</span>
+                      {inputVal.trim().length > 0 && (
+                        <span
+                          className={`font-mono text-[10px] ${
+                            inputVal.trim().length === 32 && /^[a-fA-F0-9]{32}$/.test(inputVal.trim())
+                              ? 'text-emerald-400 font-semibold'
+                              : inputVal.trim().length > 32
+                              ? 'text-amber-400 font-bold animate-pulse'
+                              : 'text-neutral-400'
+                          }`}
+                        >
+                          {inputVal.trim().length === 32 && /^[a-fA-F0-9]{32}$/.test(inputVal.trim())
+                            ? '✓ Valid 32-char Hex ID'
+                            : inputVal.trim().length > 32
+                            ? `⚠️ ${inputVal.trim().length}/32 chars (Too long - double-pasted?)`
+                            : `${inputVal.trim().length}/32 chars`}
+                        </span>
+                      )}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-500">
@@ -204,27 +230,76 @@ export function SpotifySetupModal({ isOpen, onClose }: SpotifySetupModalProps) {
                           setInputVal(e.target.value);
                           setError(null);
                         }}
-                        placeholder="Paste 32-character Client ID"
-                        className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/15 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 font-mono"
+                        placeholder="Paste exactly 32-character Client ID"
+                        className={`w-full pl-9 pr-8 py-2 bg-black/40 border rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none font-mono ${
+                          inputVal.trim().length > 32
+                            ? 'border-amber-500/80 focus:border-amber-400'
+                            : inputVal.trim().length === 32 && /^[a-fA-F0-9]{32}$/.test(inputVal.trim())
+                            ? 'border-emerald-500/80 focus:border-emerald-400'
+                            : 'border-white/15 focus:border-emerald-500'
+                        }`}
                       />
+                      {inputVal.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInputVal('');
+                            setError(null);
+                          }}
+                          className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-neutral-500 hover:text-white cursor-pointer"
+                          title="Clear input"
+                        >
+                          <X size={13} />
+                        </button>
+                      )}
                     </div>
+                    {inputVal.trim().length > 32 && (
+                      <p className="text-[10px] text-amber-300 leading-tight">
+                        Spotify Client IDs are strictly 32 hexadecimal characters. Click &quot;X&quot; above and re-copy only the Client ID from your Spotify Dashboard.
+                      </p>
+                    )}
                   </div>
 
-                  <div className="space-y-1.5 text-neutral-400">
+                  <div className="space-y-2 text-neutral-400">
                     <p className="text-[11px] font-semibold text-neutral-300">
-                      Spotify Dashboard Redirect URI (Spotify requires <code>127.0.0.1</code>):
+                      Spotify Dashboard Redirect URIs (Spotify requires <code>127.0.0.1</code>):
                     </p>
-                    <div className="flex items-center justify-between bg-black/60 rounded-xl px-3 py-2 border border-white/10 font-mono text-[11px] text-neutral-200">
-                      <span className="truncate mr-2">{nextAuthUri || redirectUri}</span>
-                      <button
-                        type="button"
-                        onClick={handleCopyAuthUri}
-                        className="flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-sans text-xs transition-colors flex-shrink-0 cursor-pointer"
-                      >
-                        {copiedAuth ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                        <span>{copiedAuth ? 'Copied' : 'Copy'}</span>
-                      </button>
+                    <div className="space-y-1.5">
+                      {/* PKCE Callback (used with Custom Client ID) */}
+                      <div>
+                        <span className="text-[10px] text-neutral-400 block mb-0.5">Primary Redirect URI (for Client ID login):</span>
+                        <div className="flex items-center justify-between bg-black/60 rounded-xl px-3 py-1.5 border border-white/10 font-mono text-[11px] text-neutral-200">
+                          <span className="truncate mr-2">{redirectUri || 'http://127.0.0.1:3000/callback'}</span>
+                          <button
+                            type="button"
+                            onClick={handleCopyCallback}
+                            className="flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-sans text-xs transition-colors flex-shrink-0 cursor-pointer"
+                          >
+                            {copiedCallback ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            <span>{copiedCallback ? 'Copied' : 'Copy'}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* NextAuth Callback (used with Server NextAuth) */}
+                      <div>
+                        <span className="text-[10px] text-neutral-400 block mb-0.5">NextAuth Redirect URI:</span>
+                        <div className="flex items-center justify-between bg-black/60 rounded-xl px-3 py-1.5 border border-white/10 font-mono text-[11px] text-neutral-200">
+                          <span className="truncate mr-2">{nextAuthUri || 'http://127.0.0.1:3000/api/auth/callback/spotify'}</span>
+                          <button
+                            type="button"
+                            onClick={handleCopyAuthUri}
+                            className="flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-sans text-xs transition-colors flex-shrink-0 cursor-pointer"
+                          >
+                            {copiedAuth ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            <span>{copiedAuth ? 'Copied' : 'Copy'}</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
+                    <p className="text-[10px] text-neutral-400 leading-tight">
+                      Ensure both URIs above are added under <strong>Settings → Redirect URIs</strong> in your Spotify Developer App.
+                    </p>
                   </div>
                 </div>
               )}
