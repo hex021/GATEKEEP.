@@ -239,6 +239,23 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
     }
     if (!targetId) return false;
 
+    if (typeof window !== 'undefined') {
+      try {
+        const proxyRes = await fetch('/api/spotify/sync', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'wake', deviceId: targetId }),
+        });
+        if (proxyRes.ok) {
+          setTimeout(() => get().pollCurrentlyPlaying(), 300);
+          return true;
+        }
+      } catch {}
+    }
+
     try {
       // Transfer playback to activate the device in Spotify Connect
       const res = await fetch('https://api.spotify.com/v1/me/player', {
@@ -326,73 +343,133 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
 
     try {
       let playbackData: any = null;
+      let usedProxy = false;
 
-      const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
-        headers: {
-          Authorization: `Bearer ${validToken}`,
-        },
-      });
-
-      if (res.status === 401) {
-        const storedTokens = getStoredTokens();
-        if (storedTokens.refreshToken) {
-          const refreshed = await refreshSpotifyToken();
-          if (!refreshed) {
-            logout();
-          } else {
-            set({ accessToken: refreshed });
-          }
-        }
-        return;
-      }
-
-      if (res.status === 403) {
-        set({
-          syncDiagnostic: {
-            status: 'forbidden',
-            message: 'Spotify API returned 403 Forbidden. Ensure your Spotify account is registered in User Management on Spotify Developer Dashboard.',
-            lastUpdated: Date.now(),
-          },
-        });
-        return;
-      }
-
-      if (res.ok && typeof res.json === 'function') {
-        playbackData = await res.json();
-      } else if (res.status === 204 || res.status === 202) {
-        // Fallback: Query /v1/me/player to check full player state & device context
+      // 1. Try local server proxy first (bypasses Brave Shields, ad-blockers, and CORS preflight issues)
+      if (typeof window !== 'undefined') {
         try {
-          const fullRes = await fetch('https://api.spotify.com/v1/me/player', {
+          const proxyRes = await fetch('/api/spotify/sync', {
             headers: { Authorization: `Bearer ${validToken}` },
           });
-          if (fullRes.ok && typeof fullRes.json === 'function') {
-            playbackData = await fullRes.json();
-          } else if (fullRes.status === 204 || fullRes.status === 202) {
-            // Both endpoints return 204: Query devices
-            const devices = await get().fetchDevices();
-            set({ hasActiveDevice: false });
-            if (devices.length > 0) {
-              set({
-                syncDiagnostic: {
-                  status: 'idle',
-                  message: `Device "${devices[0].name}" is connected, but playback is idle in Spotify Connect.`,
-                  lastUpdated: Date.now(),
-                },
-              });
-            } else {
-              set({
-                syncDiagnostic: {
-                  status: 'no-device',
-                  message: 'No active Spotify device found. Ensure Spotify is running on your PC or phone.',
-                  lastUpdated: Date.now(),
-                },
-              });
+          if (proxyRes.ok && typeof proxyRes.json === 'function') {
+            const syncResult = await proxyRes.json();
+            usedProxy = true;
+            if (syncResult && syncResult.ok) {
+              if (syncResult.user) {
+                set({
+                  userProfile: syncResult.user,
+                  isPremium: syncResult.user.product === 'premium',
+                });
+              }
+              if (syncResult.devices) {
+                const devs: SpotifyDevice[] = syncResult.devices;
+                const activeDev = devs.find((d) => d.isActive) || devs[0] || null;
+                set({
+                  availableDevices: devs,
+                  currentDevice: activeDev,
+                  hasActiveDevice: Boolean(devs.some((d) => d.isActive)),
+                });
+              }
+
+              if (syncResult.playback && syncResult.playback.item) {
+                playbackData = syncResult.playback;
+              } else {
+                set({ hasActiveDevice: false });
+                const devs = syncResult.devices || [];
+                if (devs.length > 0) {
+                  set({
+                    syncDiagnostic: {
+                      status: 'idle',
+                      message: `Device "${devs[0].name}" detected, but playback is idle in Spotify Connect.`,
+                      lastUpdated: Date.now(),
+                    },
+                  });
+                } else {
+                  set({
+                    syncDiagnostic: {
+                      status: 'no-device',
+                      message: 'No active Spotify device found. Ensure Spotify is running on your PC or phone.',
+                      lastUpdated: Date.now(),
+                    },
+                  });
+                }
+                return;
+              }
             }
-            return;
           }
         } catch {
-          set({ hasActiveDevice: false });
+          // Fall back to direct fetch if proxy unreachable
+        }
+      }
+
+      if (!usedProxy) {
+        const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+          headers: {
+            Authorization: `Bearer ${validToken}`,
+          },
+        });
+
+        if (res.status === 401) {
+          const storedTokens = getStoredTokens();
+          if (storedTokens.refreshToken) {
+            const refreshed = await refreshSpotifyToken();
+            if (!refreshed) {
+              logout();
+            } else {
+              set({ accessToken: refreshed });
+            }
+          }
           return;
+        }
+
+        if (res.status === 403) {
+          set({
+            syncDiagnostic: {
+              status: 'forbidden',
+              message: 'Spotify API returned 403 Forbidden. Ensure your Spotify account is registered in User Management on Spotify Developer Dashboard.',
+              lastUpdated: Date.now(),
+            },
+          });
+          return;
+        }
+
+        if (res.ok && typeof res.json === 'function') {
+          playbackData = await res.json();
+        } else if (res.status === 204 || res.status === 202) {
+          // Fallback: Query /v1/me/player to check full player state & device context
+          try {
+            const fullRes = await fetch('https://api.spotify.com/v1/me/player', {
+              headers: { Authorization: `Bearer ${validToken}` },
+            });
+            if (fullRes.ok && typeof fullRes.json === 'function') {
+              playbackData = await fullRes.json();
+            } else if (fullRes.status === 204 || fullRes.status === 202) {
+              // Both endpoints return 204: Query devices
+              const devices = await get().fetchDevices();
+              set({ hasActiveDevice: false });
+              if (devices.length > 0) {
+                set({
+                  syncDiagnostic: {
+                    status: 'idle',
+                    message: `Device "${devices[0].name}" is connected, but playback is idle in Spotify Connect.`,
+                    lastUpdated: Date.now(),
+                  },
+                });
+              } else {
+                set({
+                  syncDiagnostic: {
+                    status: 'no-device',
+                    message: 'No active Spotify device found. Ensure Spotify is running on your PC or phone.',
+                    lastUpdated: Date.now(),
+                  },
+                });
+              }
+              return;
+            }
+          } catch {
+            set({ hasActiveDevice: false });
+            return;
+          }
         }
       }
 
@@ -495,6 +572,24 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
   executePlaybackCommand: async (action, param) => {
     const { accessToken } = get();
     if (!accessToken) return false;
+
+    // Try server proxy first to avoid Brave Shields blocking
+    if (typeof window !== 'undefined') {
+      try {
+        const proxyRes = await fetch('/api/spotify/sync', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action, param }),
+        });
+        if (proxyRes.ok) {
+          setTimeout(() => get().pollCurrentlyPlaying(), 250);
+          return true;
+        }
+      } catch {}
+    }
 
     let url = 'https://api.spotify.com/v1/me/player';
     let method = 'PUT';
