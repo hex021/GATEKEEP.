@@ -292,10 +292,10 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
     // Immediate poll
     get().pollCurrentlyPlaying();
 
-    // High-frequency 1200ms polling for instant song-change detection
+    // Polling interval (3500ms) to respect Spotify's rate limits
     pollingIntervalId = setInterval(() => {
       get().pollCurrentlyPlaying();
-    }, 1200);
+    }, 3500);
 
     // Attach visibility/focus listener to poll immediately when tab gains focus
     if (!listenersAttached && typeof window !== 'undefined') {
@@ -354,6 +354,19 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
           if (proxyRes.ok && typeof proxyRes.json === 'function') {
             const syncResult = await proxyRes.json();
             usedProxy = true;
+
+            if (syncResult && syncResult.rateLimited) {
+              set({
+                hasActiveDevice: false,
+                syncDiagnostic: {
+                  status: 'forbidden',
+                  message: `Spotify Rate Limit Cooldown (${syncResult.retryAfterSeconds}s remaining). Create a new app in Spotify Developer Dashboard and paste its Client ID below for instant zero-wait sync!`,
+                  lastUpdated: Date.now(),
+                },
+              });
+              return;
+            }
+
             if (syncResult && syncResult.ok) {
               if (syncResult.user) {
                 set({

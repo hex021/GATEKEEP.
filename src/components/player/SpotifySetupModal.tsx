@@ -213,7 +213,30 @@ export function SpotifySetupModal({ isOpen, onClose }: SpotifySetupModalProps) {
             </div>
 
             {/* Current Playback or Diagnostic Status */}
-            {hasActiveDevice && currentTrack.id && !currentTrack.id.startsWith('demo-') ? (
+            {syncDiagnostic?.status === 'forbidden' && syncDiagnostic.message.includes('Rate Limit') ? (
+              <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 space-y-3">
+                <div className="flex items-center space-x-2 text-amber-300 font-semibold text-xs">
+                  <AlertTriangle size={16} />
+                  <span>Spotify API Rate Limit Cooldown</span>
+                </div>
+                <p className="text-xs text-amber-200/90 leading-relaxed">
+                  Spotify has temporarily restricted this Client ID due to rapid polling.
+                </p>
+                <div className="text-[11px] text-neutral-300 space-y-2 bg-black/60 p-3 rounded-xl border border-white/10">
+                  <p className="font-semibold text-white">⚡ Instant Fix (Takes 1 Minute):</p>
+                  <p className="text-neutral-300">
+                    Spotify rate limits are tied to your Client ID. Creating a fresh app gives you a new Client ID with <strong>zero rate limits</strong>:
+                  </p>
+                  <div className="space-y-1 text-[10px] text-neutral-300">
+                    <p>1. Open <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer" className="text-emerald-400 underline">developer.spotify.com/dashboard ↗</a></p>
+                    <p>2. Click <strong>Create App</strong> (name it &quot;Gatekeep 2&quot;)</p>
+                    <p>3. Set Redirect URI: <code className="text-emerald-300">http://127.0.0.1:3000/callback</code></p>
+                    <p>4. Copy the new 32-char Client ID</p>
+                    <p>5. Click <strong>Disconnect / Switch Account</strong> below and log in with your new Client ID!</p>
+                  </div>
+                </div>
+              </div>
+            ) : hasActiveDevice && currentTrack.id && !currentTrack.id.startsWith('demo-') ? (
               <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center space-x-3">
                 <img
                   src={currentTrack.albumArt}
