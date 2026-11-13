@@ -90,8 +90,8 @@ export function cleanTrackTitle(title: string): string {
   return title
     .replace(/\s*(\(|\[)\s*(feat\.?|ft\.?)\s+[^)\]]+(\)|\])/gi, '')
     .replace(/\s+(feat\.?|ft\.?)\s+.+$/gi, '')
-    .replace(/\s*-\s*(remaster(ed)?(\s*\d+)?|bonus\s*track|radio\s*edit|acoustic|deluxe(\s*edition)?|live(\s*at\s*[^)]+)?|single\s*version|album\s*version|mono|stereo).*/gi, '')
-    .replace(/\s*(\(|\[)\s*(remaster(ed)?(\s*\d+)?|bonus\s*track|radio\s*edit|acoustic|deluxe(\s*edition)?|live(\s*at\s*[^)]+)?|from\s+[^)\]]+|soundtrack\s*version)(\)|\])/gi, '')
+    .replace(/\s*-\s*(\d{4}\s+)?(remaster(ed)?(\s*\d+)?|bonus\s*track|radio\s*edit|acoustic|deluxe(\s*edition)?|live(\s*at\s*[^)]+)?|single\s*version|album\s*version|mono|stereo).*/gi, '')
+    .replace(/\s*(\(|\[)\s*(\d{4}\s+)?(remaster(ed)?(\s*\d+)?|bonus\s*track|radio\s*edit|acoustic|deluxe(\s*edition)?|live(\s*at\s*[^)]+)?|from\s+[^)\]]+|soundtrack\s*version)(\)|\])/gi, '')
     .trim();
 }
 

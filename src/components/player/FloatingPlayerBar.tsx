@@ -55,6 +55,8 @@ export function FloatingPlayerBar({
   const setSyncOffsetMs = usePlayerStore((s) => s.setSyncOffsetMs);
 
   const isAuthenticated = useSpotifyStore((s) => s.isAuthenticated);
+  const hasActiveDevice = useSpotifyStore((s) => s.hasActiveDevice);
+  const wakeDevice = useSpotifyStore((s) => s.wakeDevice);
   const openSetupModal = useSpotifyStore((s) => s.openSetupModal);
   const executePlaybackCommand = useSpotifyStore((s) => s.executePlaybackCommand);
 
@@ -286,12 +288,17 @@ export function FloatingPlayerBar({
         </div>
 
         <div className="flex flex-col min-w-0">
-          <span
-            className="text-sm sm:text-base font-semibold tracking-tight text-white truncate max-w-[160px] sm:max-w-[200px]"
-            title={currentTrack.title}
-          >
-            {currentTrack.title}
-          </span>
+          <div className="flex items-center gap-1.5 truncate">
+            <span
+              className="text-sm sm:text-base font-semibold tracking-tight text-white truncate max-w-[140px] sm:max-w-[180px]"
+              title={currentTrack.title}
+            >
+              {currentTrack.title}
+            </span>
+            {mode === 'spotify' && hasActiveDevice && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" title="Live Synced with Spotify" />
+            )}
+          </div>
           <div className="text-xs sm:text-sm font-mono text-neutral-400 flex items-center gap-2 truncate">
             <span className="truncate max-w-[90px] sm:max-w-[120px]" title={currentTrack.artist}>
               {currentTrack.artist}
@@ -301,6 +308,19 @@ export function FloatingPlayerBar({
               {formatTime(displayTime)} / {formatTime(durationMs)}
             </span>
           </div>
+          {mode === 'spotify' && isAuthenticated && !hasActiveDevice && (
+            <button
+              onClick={() => {
+                playMechanicalClick();
+                wakeDevice();
+              }}
+              className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-1.5 py-0.5 rounded cursor-pointer transition w-fit"
+              title="Click to wake desktop Spotify Connect and sync song"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+              <span>Connect Desktop Sync</span>
+            </button>
+          )}
         </div>
       </div>
 

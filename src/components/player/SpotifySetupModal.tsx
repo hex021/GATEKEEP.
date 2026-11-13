@@ -16,7 +16,13 @@ import {
   VolumeX,
   ChevronDown,
   ChevronUp,
+  RefreshCw,
+  Laptop,
+  Music,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
+import { usePlayerStore } from '@/stores/usePlayerStore';
 import { isSfxMuted, setSfxMuted, playMechanicalClick } from '@/lib/soundFx';
 
 interface SpotifySetupModalProps {
@@ -29,6 +35,15 @@ export function SpotifySetupModal({ isOpen, onClose }: SpotifySetupModalProps) {
   const isAuthenticated = useSpotifyStore((s) => s.isAuthenticated);
   const saveClientId = useSpotifyStore((s) => s.saveClientId);
   const logout = useSpotifyStore((s) => s.logout);
+  const userProfile = useSpotifyStore((s) => s.userProfile);
+  const availableDevices = useSpotifyStore((s) => s.availableDevices);
+  const currentDevice = useSpotifyStore((s) => s.currentDevice);
+  const hasActiveDevice = useSpotifyStore((s) => s.hasActiveDevice);
+  const syncDiagnostic = useSpotifyStore((s) => s.syncDiagnostic);
+  const forceSync = useSpotifyStore((s) => s.forceSync);
+  const wakeDevice = useSpotifyStore((s) => s.wakeDevice);
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
 
   const [inputVal, setInputVal] = useState(clientId);
   const [copiedCallback, setCopiedCallback] = useState(false);
@@ -37,6 +52,25 @@ export function SpotifySetupModal({ isOpen, onClose }: SpotifySetupModalProps) {
   const [redirectUri, setRedirectUri] = useState('');
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && isAuthenticated) {
+      forceSync();
+    }
+  }, [isOpen, isAuthenticated, forceSync]);
+
+  const handleSyncNow = async () => {
+    setIsSyncing(true);
+    await forceSync();
+    setTimeout(() => setIsSyncing(false), 500);
+  };
+
+  const handleWakeDevice = async (id?: string) => {
+    setIsSyncing(true);
+    await wakeDevice(id);
+    setTimeout(() => setIsSyncing(false), 500);
+  };
 
   useEffect(() => {
     setSfxEnabled(!isSfxMuted());
@@ -131,28 +165,156 @@ export function SpotifySetupModal({ isOpen, onClose }: SpotifySetupModalProps) {
         {/* Authenticated State */}
         {isAuthenticated ? (
           <div className="space-y-4">
-            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center space-x-3.5">
-              <ShieldCheck size={28} className="text-emerald-400 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-emerald-300">Connected to Spotify</p>
-                <p className="text-xs text-emerald-200/80">
-                  VibeSync is live-syncing timestamps &amp; lyrics with your active Spotify playback.
-                </p>
+            {/* Account Info Card */}
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+              <div className="flex items-center space-x-3 min-w-0">
+                {userProfile?.image ? (
+                  <img
+                    src={userProfile.image}
+                    alt={userProfile.displayName}
+                    className="w-10 h-10 rounded-full object-cover border border-emerald-400/40"
+                    crossOrigin="anonymous"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-sm">
+                    {userProfile?.displayName ? userProfile.displayName.charAt(0).toUpperCase() : 'S'}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center space-x-2">
+                    <p className="text-sm font-semibold text-white truncate">
+                      {userProfile?.displayName || 'Spotify Active'}
+                    </p>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      {userProfile?.product || 'Connected'}
+                    </span>
+                  </div>
+                  {userProfile?.email && (
+                    <p className="text-xs text-neutral-400 truncate">{userProfile.email}</p>
+                  )}
+                </div>
               </div>
+
+              <button
+                type="button"
+                onClick={handleSyncNow}
+                disabled={isSyncing}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-medium transition cursor-pointer active:scale-95 disabled:opacity-50"
+                title="Force refresh Spotify sync"
+              >
+                <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
+                <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
+              </button>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
+            {/* Current Playback or Diagnostic Status */}
+            {hasActiveDevice && currentTrack.id && !currentTrack.id.startsWith('demo-') ? (
+              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center space-x-3">
+                <img
+                  src={currentTrack.albumArt}
+                  alt={currentTrack.title}
+                  className="w-11 h-11 rounded-lg object-cover border border-white/10 flex-shrink-0"
+                  crossOrigin="anonymous"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <p className="text-xs font-mono uppercase tracking-wider text-emerald-300">Live Playing</p>
+                  </div>
+                  <p className="text-sm font-semibold text-white truncate">{currentTrack.title}</p>
+                  <p className="text-xs text-neutral-400 truncate">{currentTrack.artist}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+                <div className="flex items-center space-x-2 text-amber-300 font-semibold text-xs">
+                  <AlertTriangle size={15} />
+                  <span>Desktop Waiting for Spotify Connect</span>
+                </div>
+                <p className="text-xs text-amber-200/90 leading-relaxed">
+                  Spotify is connected to your account, but desktop playback is not yet broadcasting to Spotify Connect.
+                </p>
+                <div className="text-[11px] text-neutral-300 space-y-1 bg-black/40 p-2.5 rounded-xl border border-white/5">
+                  <p className="font-semibold text-white">How to connect in 5 seconds:</p>
+                  <p>1. Open your <strong>Spotify Desktop</strong> app and play your song.</p>
+                  <p>2. Click the <strong>Speaker / Device icon</strong> in Spotify (bottom right beside volume) and select this PC.</p>
+                  <p>3. Or click <strong>&quot;Wake &amp; Connect&quot;</strong> on your PC device below!</p>
+                </div>
+              </div>
+            )}
+
+            {/* Detected Devices List */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-neutral-400 px-1">
+                <span className="font-semibold text-neutral-300">Detected Spotify Devices:</span>
+                <span className="font-mono text-[10px]">{availableDevices.length} available</span>
+              </div>
+
+              {availableDevices.length > 0 ? (
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  {availableDevices.map((dev) => (
+                    <div
+                      key={dev.id}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border transition text-xs ${
+                        dev.isActive
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-white'
+                          : 'bg-white/5 border-white/10 text-neutral-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <Laptop size={15} className={dev.isActive ? 'text-emerald-400' : 'text-neutral-400'} />
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{dev.name}</p>
+                          <p className="text-[10px] text-neutral-400">
+                            {dev.type} {dev.isActive ? '• Active' : '• Idle'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleWakeDevice(dev.id)}
+                        disabled={isSyncing}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                          dev.isActive
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                            : 'bg-white/10 text-white hover:bg-white/20'
+                        }`}
+                      >
+                        {dev.isActive ? 'Active' : 'Wake & Connect'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between text-xs text-neutral-400">
+                  <span>No devices detected yet</span>
+                  <button
+                    type="button"
+                    onClick={handleSyncNow}
+                    className="text-emerald-400 hover:underline cursor-pointer"
+                  >
+                    Scan Devices
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-white/10">
               <button
+                type="button"
                 onClick={handleDisconnect}
-                className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 text-xs font-medium border border-red-500/20 transition-colors cursor-pointer"
+                className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 text-xs font-medium border border-red-500/20 transition-colors cursor-pointer"
               >
-                <LogOut size={14} />
-                <span>Disconnect Account</span>
+                <LogOut size={13} />
+                <span>Disconnect / Switch Account</span>
               </button>
 
               <button
+                type="button"
                 onClick={onClose}
-                className="px-5 py-2.5 rounded-xl bg-white text-black font-semibold text-xs hover:bg-neutral-200 transition-colors cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-white text-black font-semibold text-xs hover:bg-neutral-200 transition-colors cursor-pointer"
               >
                 Done
               </button>

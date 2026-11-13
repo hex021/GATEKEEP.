@@ -37,9 +37,10 @@ export function SpotifyLoginButton({ className = '', variant = 'full' }: Spotify
   }
 
   if (isConnected) {
+    const userProfile = useSpotifyStore.getState().userProfile;
     const hasError = session?.error === 'RefreshAccessTokenError';
-    const userName = session?.user?.name || 'Spotify Active';
-    const userImage = session?.user?.image;
+    const userName = userProfile?.displayName || session?.user?.name || 'Spotify Active';
+    const userImage = userProfile?.image || session?.user?.image;
 
     return (
       <div className={`flex items-center space-x-1.5 ${className}`}>

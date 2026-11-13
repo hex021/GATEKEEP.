@@ -9,6 +9,8 @@ export const SPOTIFY_SCOPES = [
   'user-read-currently-playing',
   'user-read-playback-state',
   'user-modify-playback-state',
+  'user-read-email',
+  'user-read-private',
 ].join(' ');
 
 export function getStoredClientId(): string {

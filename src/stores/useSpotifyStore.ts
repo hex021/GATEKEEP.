@@ -18,6 +18,20 @@ export interface SpotifyDevice {
   volumePercent: number;
 }
 
+export interface SpotifyUserProfile {
+  id: string;
+  displayName: string;
+  email: string;
+  image: string | null;
+  product: string;
+}
+
+export interface SpotifySyncDiagnostic {
+  status: 'idle' | 'synced' | 'no-device' | 'forbidden' | 'error';
+  message: string;
+  lastUpdated: number;
+}
+
 interface SpotifyState {
   clientId: string;
   accessToken: string | null;
@@ -27,6 +41,9 @@ interface SpotifyState {
   isPolling: boolean;
   hasActiveDevice: boolean;
   currentDevice: SpotifyDevice | null;
+  availableDevices: SpotifyDevice[];
+  userProfile: SpotifyUserProfile | null;
+  syncDiagnostic: SpotifySyncDiagnostic | null;
   isPremium: boolean;
   observerMode: boolean;
   lastPollTimestamp: number;
@@ -44,6 +61,10 @@ interface SpotifyState {
   stopPolling: () => void;
   openSetupModal: () => void;
   closeSetupModal: () => void;
+  fetchUserProfile: () => Promise<SpotifyUserProfile | null>;
+  fetchDevices: () => Promise<SpotifyDevice[]>;
+  wakeDevice: (deviceId?: string) => Promise<boolean>;
+  forceSync: () => Promise<void>;
   executePlaybackCommand: (action: 'play' | 'pause' | 'next' | 'previous' | 'seek', param?: any) => Promise<boolean>;
   playTrackUri: (spotifyUri: string) => Promise<boolean>;
   fetchAndPlayItem: (type: SpotifyItemType, id: string) => Promise<boolean>;
@@ -62,6 +83,9 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
   isPolling: false,
   hasActiveDevice: false,
   currentDevice: null,
+  availableDevices: [],
+  userProfile: null,
+  syncDiagnostic: null,
   isPremium: true,
   observerMode: false,
   lastPollTimestamp: 0,
@@ -87,6 +111,8 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
     // When valid credentials exist, automatically switch to Spotify mode and start live sync
     if (isValid) {
       usePlayerStore.getState().setMode('spotify');
+      get().fetchUserProfile();
+      get().fetchDevices();
       if (!get().isPolling) {
         get().startPolling();
       }
@@ -107,6 +133,8 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
       isAuthenticated: true,
     });
     usePlayerStore.getState().setMode('spotify');
+    get().fetchUserProfile();
+    get().fetchDevices();
     get().startPolling();
   },
 
@@ -119,6 +147,8 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
     });
     // Automatically switch player mode to spotify and start polling
     usePlayerStore.getState().setMode('spotify');
+    get().fetchUserProfile();
+    get().fetchDevices();
     get().startPolling();
   },
 
@@ -134,7 +164,108 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
       isAuthenticated: false,
       hasActiveDevice: false,
       currentDevice: null,
+      availableDevices: [],
+      userProfile: null,
+      syncDiagnostic: null,
     });
+  },
+
+  fetchUserProfile: async () => {
+    const { accessToken } = get();
+    if (!accessToken) return null;
+    try {
+      const res = await fetch('https://api.spotify.com/v1/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (res.ok && typeof res.json === 'function') {
+        const data = await res.json();
+        const profile: SpotifyUserProfile = {
+          id: data.id,
+          displayName: data.display_name || data.id,
+          email: data.email || '',
+          image: data.images?.[0]?.url || null,
+          product: data.product || 'free',
+        };
+        set({ userProfile: profile, isPremium: profile.product === 'premium' });
+        return profile;
+      }
+    } catch (err) {
+      console.warn('Spotify profile fetch error:', err);
+    }
+    return null;
+  },
+
+  fetchDevices: async () => {
+    const { accessToken } = get();
+    if (!accessToken) return [];
+    try {
+      const res = await fetch('https://api.spotify.com/v1/me/player/devices', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (res.ok && typeof res.json === 'function') {
+        const data = await res.json();
+        const devices: SpotifyDevice[] = (data.devices || []).map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          type: d.type,
+          isActive: Boolean(d.is_active),
+          volumePercent: d.volume_percent ?? 100,
+        }));
+        const activeDev = devices.find((d) => d.isActive) || devices[0] || null;
+        const hasActive = Boolean(devices.some((d) => d.isActive));
+        set({
+          availableDevices: devices,
+          currentDevice: activeDev,
+          hasActiveDevice: hasActive,
+        });
+        return devices;
+      }
+    } catch (err) {
+      console.warn('Spotify devices fetch error:', err);
+    }
+    return [];
+  },
+
+  wakeDevice: async (deviceId?: string) => {
+    const { accessToken, availableDevices } = get();
+    if (!accessToken) return false;
+    let targetId = deviceId;
+    if (!targetId) {
+      let devs = availableDevices;
+      if (devs.length === 0) {
+        devs = await get().fetchDevices();
+      }
+      targetId = devs.find((d) => d.isActive)?.id || devs[0]?.id;
+    }
+    if (!targetId) return false;
+
+    try {
+      // Transfer playback to activate the device in Spotify Connect
+      const res = await fetch('https://api.spotify.com/v1/me/player', {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          device_ids: [targetId],
+          play: false,
+        }),
+      });
+      if (res.ok || res.status === 204) {
+        setTimeout(() => get().pollCurrentlyPlaying(), 300);
+        return true;
+      }
+    } catch (err) {
+      console.error('Failed to wake Spotify device:', err);
+    }
+    return false;
+  },
+
+  forceSync: async () => {
+    await get().fetchUserProfile();
+    await get().fetchDevices();
+    await get().pollCurrentlyPlaying();
   },
 
   startPolling: () => {
@@ -194,16 +325,13 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
     }
 
     try {
+      let playbackData: any = null;
+
       const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
         headers: {
           Authorization: `Bearer ${validToken}`,
         },
       });
-
-      if (res.status === 204 || res.status === 202) {
-        set({ hasActiveDevice: false });
-        return;
-      }
 
       if (res.status === 401) {
         const storedTokens = getStoredTokens();
@@ -218,19 +346,78 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
         return;
       }
 
-      if (res.ok) {
-        const data = await res.json();
-        if (!data || !data.item) {
+      if (res.status === 403) {
+        set({
+          syncDiagnostic: {
+            status: 'forbidden',
+            message: 'Spotify API returned 403 Forbidden. Ensure your Spotify account is registered in User Management on Spotify Developer Dashboard.',
+            lastUpdated: Date.now(),
+          },
+        });
+        return;
+      }
+
+      if (res.ok && typeof res.json === 'function') {
+        playbackData = await res.json();
+      } else if (res.status === 204 || res.status === 202) {
+        // Fallback: Query /v1/me/player to check full player state & device context
+        try {
+          const fullRes = await fetch('https://api.spotify.com/v1/me/player', {
+            headers: { Authorization: `Bearer ${validToken}` },
+          });
+          if (fullRes.ok && typeof fullRes.json === 'function') {
+            playbackData = await fullRes.json();
+          } else if (fullRes.status === 204 || fullRes.status === 202) {
+            // Both endpoints return 204: Query devices
+            const devices = await get().fetchDevices();
+            set({ hasActiveDevice: false });
+            if (devices.length > 0) {
+              set({
+                syncDiagnostic: {
+                  status: 'idle',
+                  message: `Device "${devices[0].name}" is connected, but playback is idle in Spotify Connect.`,
+                  lastUpdated: Date.now(),
+                },
+              });
+            } else {
+              set({
+                syncDiagnostic: {
+                  status: 'no-device',
+                  message: 'No active Spotify device found. Ensure Spotify is running on your PC or phone.',
+                  lastUpdated: Date.now(),
+                },
+              });
+            }
+            return;
+          }
+        } catch {
           set({ hasActiveDevice: false });
           return;
         }
+      }
 
-        const item = data.item;
+      if (playbackData && playbackData.item) {
+        const item = playbackData.item;
         const now = performance.now();
+        const dev = playbackData.device;
         set({
           hasActiveDevice: true,
           lastPollTimestamp: now,
-          spotifyProgressMs: data.progress_ms || 0,
+          spotifyProgressMs: playbackData.progress_ms || 0,
+          currentDevice: dev
+            ? {
+                id: dev.id,
+                name: dev.name,
+                type: dev.type,
+                isActive: Boolean(dev.is_active),
+                volumePercent: dev.volume_percent ?? 100,
+              }
+            : get().currentDevice,
+          syncDiagnostic: {
+            status: 'synced',
+            message: `Live: "${item.name}" by ${item.artists?.map((a: any) => a.name).join(', ') || 'Unknown'}`,
+            lastUpdated: Date.now(),
+          },
         });
 
         const playerStore = usePlayerStore.getState();
@@ -287,16 +474,18 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
         }
 
         // Sync playback state smoothly
-        playerStore.setIsPlaying(Boolean(data.is_playing));
+        playerStore.setIsPlaying(Boolean(playbackData.is_playing));
         playerStore.setDurationMs(item.duration_ms);
 
         // Drift check: Only force set currentTimeMs if drift > 1200ms or not playing
         // (preserves ultra-smooth 60fps RAF interpolation in AudioController)
         const currentProgress = playerStore.currentTimeMs;
-        const drift = Math.abs(currentProgress - (data.progress_ms || 0));
-        if (drift > 1200 || !data.is_playing) {
-          playerStore.setCurrentTimeMs(data.progress_ms || 0);
+        const drift = Math.abs(currentProgress - (playbackData.progress_ms || 0));
+        if (drift > 1200 || !playbackData.is_playing) {
+          playerStore.setCurrentTimeMs(playbackData.progress_ms || 0);
         }
+      } else {
+        set({ hasActiveDevice: false });
       }
     } catch (err) {
       console.error('Spotify poll error:', err);
@@ -338,6 +527,28 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
       if (res.status === 403) {
         set({ isPremium: false, observerMode: true });
         return false;
+      }
+
+      if (res.status === 404) {
+        // Device not active / asleep. Try waking available device and retry command
+        const devices = await get().fetchDevices();
+        if (devices.length > 0) {
+          const target = devices.find((d) => d.isActive) || devices[0];
+          const sep = url.includes('?') ? '&' : '?';
+          const targetUrl = `${url}${sep}device_id=${target.id}`;
+          const retryRes = await fetch(targetUrl, {
+            method,
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: body ? JSON.stringify(body) : undefined,
+          });
+          if (retryRes.ok || retryRes.status === 204) {
+            setTimeout(() => get().pollCurrentlyPlaying(), 300);
+            return true;
+          }
+        }
       }
 
       if (res.ok || res.status === 204) {
