@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { signIn } from 'next-auth/react';
+import { signIn, signOut } from 'next-auth/react';
 import { useSpotifyStore } from '@/stores/useSpotifyStore';
 import { initiateSpotifyLogin, getRedirectUri } from '@/lib/spotifyAuth';
 import {
@@ -21,6 +21,7 @@ import {
   Music,
   CheckCircle2,
   AlertTriangle,
+  ExternalLink,
 } from 'lucide-react';
 import { usePlayerStore } from '@/stores/usePlayerStore';
 import { isSfxMuted, setSfxMuted, playMechanicalClick } from '@/lib/soundFx';
@@ -133,9 +134,13 @@ export function SpotifySetupModal({ isOpen, onClose }: SpotifySetupModalProps) {
     }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     logout();
-    onClose();
+    try {
+      await signOut({ redirect: false });
+    } catch {
+      // ignore
+    }
   };
 
   if (!isOpen) return null;
@@ -226,19 +231,41 @@ export function SpotifySetupModal({ isOpen, onClose }: SpotifySetupModalProps) {
                 </div>
               </div>
             ) : (
-              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-3">
                 <div className="flex items-center space-x-2 text-amber-300 font-semibold text-xs">
                   <AlertTriangle size={15} />
-                  <span>Desktop Waiting for Spotify Connect</span>
+                  <span>Spotify Desktop Not Found on This Account</span>
                 </div>
-                <p className="text-xs text-amber-200/90 leading-relaxed">
-                  Spotify is connected to your account, but desktop playback is not yet broadcasting to Spotify Connect.
-                </p>
-                <div className="text-[11px] text-neutral-300 space-y-1 bg-black/40 p-2.5 rounded-xl border border-white/5">
-                  <p className="font-semibold text-white">How to connect in 5 seconds:</p>
-                  <p>1. Open your <strong>Spotify Desktop</strong> app and play your song.</p>
-                  <p>2. Click the <strong>Speaker / Device icon</strong> in Spotify (bottom right beside volume) and select this PC.</p>
-                  <p>3. Or click <strong>&quot;Wake &amp; Connect&quot;</strong> on your PC device below!</p>
+
+                <div className="text-[11px] text-neutral-300 space-y-2.5 bg-black/50 p-3 rounded-xl border border-white/10">
+                  <div className="border-b border-white/10 pb-2.5">
+                    <p className="font-semibold text-white mb-1">1. Check Account Match (Primary Cause):</p>
+                    <p className="text-neutral-300 leading-relaxed">
+                      Gatekeep is currently authorized as <strong className="text-emerald-400">{userProfile?.email || '7achyon21@gmail.com'}</strong>.
+                    </p>
+                    <p className="text-neutral-400 mt-1 leading-relaxed">
+                      In your <strong>Spotify Desktop app</strong>, click your profile picture at the top-right → <strong>Account</strong>. Does the account email match <strong>{userProfile?.email || '7achyon21@gmail.com'}</strong>?
+                    </p>
+                    <p className="text-amber-300 mt-1.5 font-medium">
+                      If your desktop app is on a different account, click &quot;Disconnect / Switch Account&quot; below to sign into that account.
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="font-semibold text-white mb-1">2. Or Wake via Web Player:</p>
+                    <p className="text-neutral-400 leading-relaxed">
+                      If the email matches, open Spotify Web Player in a browser tab. Playing any song there forces Spotify Connect to register this browser instantly:
+                    </p>
+                    <a
+                      href="https://open.spotify.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center space-x-1.5 mt-2 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-semibold text-xs border border-emerald-500/40 transition"
+                    >
+                      <span>Open open.spotify.com</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
                 </div>
               </div>
             )}

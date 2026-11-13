@@ -83,6 +83,7 @@ export async function initiateSpotifyLogin(customClientId?: string): Promise<voi
     code_challenge: challenge,
     redirect_uri: redirectUri,
     state: state,
+    show_dialog: 'true',
   });
 
   window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
