@@ -250,7 +250,7 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
           body: JSON.stringify({ action: 'wake', deviceId: targetId }),
         });
         if (proxyRes.ok) {
-          setTimeout(() => get().pollCurrentlyPlaying(), 300);
+          setTimeout(() => get().forceSync(), 300);
           return true;
         }
       } catch {}
@@ -266,11 +266,11 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
         },
         body: JSON.stringify({
           device_ids: [targetId],
-          play: false,
+          play: true,
         }),
       });
       if (res.ok || res.status === 204) {
-        setTimeout(() => get().pollCurrentlyPlaying(), 300);
+        setTimeout(() => get().forceSync(), 300);
         return true;
       }
     } catch (err) {
@@ -280,6 +280,14 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
   },
 
   forceSync: async () => {
+    const { accessToken } = get();
+    if (accessToken && typeof window !== 'undefined') {
+      try {
+        await fetch('/api/spotify/sync?force=true', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      } catch {}
+    }
     await get().fetchUserProfile();
     await get().fetchDevices();
     await get().pollCurrentlyPlaying();
@@ -356,14 +364,16 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
             usedProxy = true;
 
             if (syncResult && syncResult.rateLimited) {
-              set({
-                hasActiveDevice: false,
-                syncDiagnostic: {
-                  status: 'forbidden',
-                  message: `Spotify Rate Limit Cooldown (${syncResult.retryAfterSeconds}s remaining). Create a new app in Spotify Developer Dashboard and paste its Client ID below for instant zero-wait sync!`,
-                  lastUpdated: Date.now(),
-                },
-              });
+              if (syncResult.retryAfterSeconds > 15) {
+                set({
+                  hasActiveDevice: false,
+                  syncDiagnostic: {
+                    status: 'forbidden',
+                    message: `Spotify Rate Limit Cooldown (${syncResult.retryAfterSeconds}s remaining).`,
+                    lastUpdated: Date.now(),
+                  },
+                });
+              }
               return;
             }
 
@@ -511,31 +521,42 @@ export const useSpotifyStore = create<SpotifyState>((set, get) => ({
         });
 
         const playerStore = usePlayerStore.getState();
-        const currentId = playerStore.currentTrack.id;
+        if (playerStore.mode !== 'spotify') {
+          playerStore.setMode('spotify');
+        }
 
-        // If new track detected on Spotify (user changed track in Spotify app)
-        if (item.id && item.id !== currentId) {
+        const currentId = playerStore.currentTrack.id;
+        const currentLyrics = playerStore.lyrics;
+        const hasFullLyrics =
+          currentLyrics.length > 2 &&
+          !currentLyrics.every((l) => l.text.startsWith('♪') || l.text.startsWith('—'));
+        const isNewTrack = Boolean(item.id && item.id !== currentId);
+
+        // If new track detected on Spotify (user changed track in Spotify app) or lyrics not yet loaded
+        if (isNewTrack || !hasFullLyrics) {
           const artistNames = item.artists?.map((a: any) => a.name).join(', ') || 'Unknown Artist';
           const albumArt = item.album?.images?.[0]?.url || '/demo/covers/neo-tokyo.svg';
 
-          playerStore.setTrack({
-            id: item.id,
-            title: item.name,
-            artist: artistNames,
-            album: item.album?.name || '',
-            albumArt: albumArt,
-            durationMs: item.duration_ms,
-            palette: ['#05050A', '#1E1B4B', '#7C3AED', '#38BDF8'],
-            vibeTag: 'Spotify Live Stream',
-            storyQuote: `${item.name} — ${artistNames}`,
-            spotifyUri: item.uri,
-          });
+          if (isNewTrack) {
+            playerStore.setTrack({
+              id: item.id,
+              title: item.name,
+              artist: artistNames,
+              album: item.album?.name || '',
+              albumArt: albumArt,
+              durationMs: item.duration_ms,
+              palette: ['#05050A', '#1E1B4B', '#7C3AED', '#38BDF8'],
+              vibeTag: 'Spotify Live Stream',
+              storyQuote: `${item.name} — ${artistNames}`,
+              spotifyUri: item.uri,
+            });
 
-          // 1. Immediately display new track placeholder lyrics
-          playerStore.setLyrics([
-            { timeMs: 0, text: `♪ ${item.name} ♪` },
-            { timeMs: 2000, text: `— ${artistNames} —` },
-          ]);
+            // 1. Immediately display new track placeholder lyrics while fetching
+            playerStore.setLyrics([
+              { timeMs: 0, text: `♪ ${item.name} ♪` },
+              { timeMs: 2000, text: `— ${artistNames} —` },
+            ]);
+          }
 
           // 2. Query intelligent LRCLIB studio-sync engine directly for Spotify tracks
           fetchLyricsFromLrclib(item.name, artistNames, item.duration_ms / 1000).then((lyricsResult) => {
